@@ -1,0 +1,152 @@
+<main class="firma-page" aria-labelledby="titulo-firma">
+  <header class="page-header">
+    <p class="eyebrow">Diplomas digitales</p>
+    <h1 id="titulo-firma">Gestión de firma</h1>
+    <p>Validación y cargue de firma para firmantes autorizados.</p>
+  </header>
+
+  <mat-card class="firma-card" appearance="outlined" aria-labelledby="identificacion-title">
+    <mat-card-header>
+      <mat-card-title id="identificacion-title">Identificación del firmante</mat-card-title>
+      <mat-card-subtitle>{{ estado() }}</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form class="document-form" [formGroup]="validarFirmanteForm" (ngSubmit)="validarFirmante()">
+        <mat-form-field appearance="outline" class="document-field">
+          <mat-label>Documento de identidad</mat-label>
+          <mat-icon matPrefix aria-hidden="true">badge</mat-icon>
+          <input
+            matInput
+            id="documento"
+            type="number"
+            inputmode="numeric"
+            autocomplete="off"
+            formControlName="documento"
+            aria-describedby="documento-ayuda firmante-error"
+          />
+          <mat-hint id="documento-ayuda">Ingrese solo números.</mat-hint>
+          @if (validarFirmanteForm.controls.documento.invalid && validarFirmanteForm.controls.documento.touched) {
+            <mat-error>Ingrese un documento válido.</mat-error>
+          }
+        </mat-form-field>
+
+        <button mat-raised-button color="primary" type="submit" [disabled]="loadingFirmante()">
+          @if (loadingFirmante()) {
+            <mat-progress-spinner diameter="18" mode="indeterminate" aria-label="Validando firmante" />
+          } @else {
+            <mat-icon aria-hidden="true">verified_user</mat-icon>
+          }
+          <span>Validar firmante</span>
+        </button>
+      </form>
+
+      @if (firmanteError()) {
+        <p id="firmante-error" class="message message--error" role="alert">{{ firmanteError() }}</p>
+      }
+
+      @if (firmante(); as firmanteActivo) {
+        <section class="firmante-info" aria-label="Firmante activo">
+          <div>
+            <span>Nombre</span>
+            <strong>{{ firmanteActivo.nombre }}</strong>
+          </div>
+          <div>
+            <span>Cargo</span>
+            <strong>{{ firmanteActivo.cargo }}</strong>
+          </div>
+          <div>
+            <span>Rol</span>
+            <strong>{{ firmanteActivo.rol }}</strong>
+          </div>
+          <div>
+            <span>Documento</span>
+            <strong>{{ firmanteActivo.documento_identidad }}</strong>
+          </div>
+          <div>
+            <span>Orden</span>
+            <strong>{{ firmanteActivo.orden || 'No definido' }}</strong>
+          </div>
+        </section>
+      }
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card class="firma-card" appearance="outlined" aria-labelledby="firma-title">
+    <mat-card-header>
+      <mat-card-title id="firma-title">Firma</mat-card-title>
+      <mat-card-subtitle>Imagen PNG, máximo 2 MB.</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <section class="upload-zone" [class.upload-zone--disabled]="!puedeSeleccionarArchivo()" aria-labelledby="upload-title">
+        <mat-icon class="upload-zone__icon" aria-hidden="true">upload_file</mat-icon>
+        <div class="upload-zone__copy">
+          <h3 id="upload-title">Seleccione una imagen PNG de la firma</h3>
+          <p>El archivo se previsualiza antes de enviarse.</p>
+        </div>
+        <input
+          #firmaInput
+          id="firma-file"
+          class="file-input"
+          type="file"
+          accept="image/png"
+          [disabled]="!puedeSeleccionarArchivo()"
+          (change)="onArchivoInput($event)"
+        />
+        <button mat-stroked-button color="primary" type="button" [disabled]="!puedeSeleccionarArchivo()" (click)="firmaInput.click()">
+          <mat-icon aria-hidden="true">image</mat-icon>
+          <span>Seleccionar archivo</span>
+        </button>
+      </section>
+
+      @if (archivoError()) {
+        <p class="message message--error" role="alert">{{ archivoError() }}</p>
+      }
+
+      @if (archivo(); as archivoSeleccionado) {
+        <section class="preview" aria-label="Previsualización de firma">
+          @if (previewUrl()) {
+            <img [src]="previewUrl()" alt="Previsualización de la firma seleccionada" />
+          }
+          <div class="preview__detail">
+            <span>Archivo seleccionado</span>
+            <strong>{{ archivoSeleccionado.name }}</strong>
+            <p>{{ formatoTamano(archivoSeleccionado.size) }}</p>
+          </div>
+          <button mat-button color="primary" type="button" (click)="limpiarArchivo()">
+            <mat-icon aria-hidden="true">refresh</mat-icon>
+            <span>Reemplazar</span>
+          </button>
+        </section>
+      }
+
+      <div class="actions">
+        <button
+          mat-raised-button
+          color="primary"
+          type="button"
+          data-testid="subir-firma"
+          [disabled]="!puedeSubir()"
+          (click)="subirFirma()"
+        >
+          @if (subiendoFirma()) {
+            <mat-progress-spinner diameter="18" mode="indeterminate" aria-label="Cargando firma" />
+          } @else {
+            <mat-icon aria-hidden="true">cloud_upload</mat-icon>
+          }
+          <span>Cargar firma</span>
+        </button>
+      </div>
+
+      @if (resultado(); as resultadoFirma) {
+        <p class="message message--success" role="status" aria-live="polite">
+          Firma cargada correctamente. Enlace: {{ resultadoFirma.enlace_firma }}
+        </p>
+      }
+      @if (error()) {
+        <p class="message message--error" role="alert">{{ error() }}</p>
+      }
+    </mat-card-content>
+  </mat-card>
+</main>

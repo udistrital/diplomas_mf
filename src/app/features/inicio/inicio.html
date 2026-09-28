@@ -1,0 +1,37 @@
+<main class="inicio-page" aria-labelledby="titulo-inicio">
+  <section class="selector-card">
+    <header class="selector-card__header">
+      <mat-icon aria-hidden="true">school</mat-icon>
+      <h1 id="titulo-inicio">Gestión de diplomas</h1>
+      <p>Seleccione el módulo que desea administrar.</p>
+    </header>
+
+    <div class="module-list" role="list">
+      @for (modulo of modulos; track modulo.titulo) {
+        @if (modulo.habilitado && modulo.ruta) {
+          <a class="module-option" role="listitem" [routerLink]="modulo.ruta" [attr.aria-label]="modulo.titulo">
+            <span class="module-option__icon">
+              <mat-icon aria-hidden="true">{{ modulo.icono }}</mat-icon>
+            </span>
+            <span class="module-option__copy">
+              <strong>{{ modulo.titulo }}</strong>
+              <span>{{ modulo.descripcion }}</span>
+            </span>
+            <mat-icon class="module-option__arrow" aria-hidden="true">arrow_forward</mat-icon>
+          </a>
+        } @else {
+          <div class="module-option module-option--disabled" role="listitem" aria-disabled="true">
+            <span class="module-option__icon">
+              <mat-icon aria-hidden="true">{{ modulo.icono }}</mat-icon>
+            </span>
+            <span class="module-option__copy">
+              <strong>{{ modulo.titulo }}</strong>
+              <span>{{ modulo.descripcion }}</span>
+            </span>
+            <span class="module-option__state">Próximamente</span>
+          </div>
+        }
+      }
+    </div>
+  </section>
+</main>

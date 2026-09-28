@@ -1,0 +1,218 @@
+.firma-page {
+  width: min(100%, 980px);
+  margin: 0 auto;
+  padding: 36px 20px 56px;
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--diplomas-primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.page-header h1 {
+  margin: 0 0 8px;
+  font-size: 2rem;
+  line-height: 1.15;
+  color: #12263a;
+}
+
+.page-header p:last-child {
+  margin: 0;
+  color: #52616f;
+}
+
+.firma-card {
+  margin-bottom: 20px;
+  border-color: #d6e1ea;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(18, 38, 58, 0.06);
+}
+
+.firma-card mat-card-header {
+  padding: 24px 24px 0;
+}
+
+.firma-card mat-card-content {
+  padding: 20px 24px 24px;
+}
+
+.document-form {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+
+.document-field {
+  width: 100%;
+}
+
+button[mat-raised-button],
+button[mat-stroked-button],
+button[mat-button] {
+  min-height: 44px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+button mat-icon,
+button mat-progress-spinner {
+  margin-right: 8px;
+}
+
+button mat-progress-spinner {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.firmante-info {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fbfd;
+}
+
+.firmante-info div {
+  min-width: 0;
+}
+
+.firmante-info span,
+.preview__detail span {
+  display: block;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.firmante-info strong,
+.preview__detail strong {
+  display: block;
+  margin-top: 4px;
+  color: #1f2937;
+  overflow-wrap: anywhere;
+}
+
+.upload-zone {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 22px;
+  border: 1px dashed #9ebbd0;
+  border-radius: 8px;
+  background: #f7fafc;
+}
+
+.upload-zone--disabled {
+  opacity: 0.64;
+}
+
+.upload-zone__icon {
+  width: 40px;
+  height: 40px;
+  color: var(--diplomas-primary);
+  font-size: 40px;
+}
+
+.upload-zone__copy h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.upload-zone__copy p {
+  margin: 0;
+  color: #64748b;
+}
+
+.file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.preview {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.preview img {
+  width: 100%;
+  max-height: 120px;
+  object-fit: contain;
+  border: 1px solid #d6e1ea;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.preview__detail p {
+  margin: 4px 0 0;
+  color: #64748b;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.message {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.message--error {
+  color: #9f1d21;
+  background: #fdebec;
+}
+
+.message--success {
+  color: #0f5132;
+  background: #e4f7ec;
+}
+
+@media (max-width: 760px) {
+  .firma-page {
+    padding: 24px 14px 40px;
+  }
+
+  .document-form,
+  .firmante-info,
+  .upload-zone,
+  .preview {
+    grid-template-columns: 1fr;
+  }
+
+  .upload-zone button,
+  .actions button {
+    width: 100%;
+  }
+
+  .actions {
+    justify-content: stretch;
+  }
+}
