@@ -25,6 +25,15 @@ type EstadoFirma =
 const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024;
 const TIPO_DOCUMENTO_FIRMA = 38;
 
+interface UsuarioAutenticadoStorage {
+  user?: {
+    documento?: string | number;
+  };
+  userService?: {
+    documento?: string | number;
+  };
+}
+
 @Component({
   selector: 'diplomas-mf-cargar-firma',
   imports: [
@@ -65,8 +74,16 @@ export class CargarFirmaComponent {
 
   readonly puedeSeleccionarArchivo = computed(() => this.firmante() !== null && !this.loadingFirmante());
   readonly puedeSubir = computed(() => this.firmante() !== null && this.archivo() !== null && !this.subiendoFirma());
+  readonly enlaceFirmaActual = computed(() =>
+    this.resultado()?.enlace_firma
+    ?? this.firmante()?.firma_firmante?.enlace_firma
+    ?? this.firmante()?.enlace_firma
+    ?? null
+  );
+  readonly firmaImagenActual = computed(() => this.firmante()?.firma_imagen ?? null);
 
   constructor() {
+    this.precargarDocumentoAutenticado();
     this.destroyRef.onDestroy(() => this.liberarPreview());
   }
 
@@ -200,5 +217,31 @@ export class CargarFirmaComponent {
       URL.revokeObjectURL(url);
     }
     this.previewUrl.set(null);
+  }
+
+  private precargarDocumentoAutenticado(): void {
+    const documento = this.obtenerDocumentoAutenticado();
+    if (!documento) {
+      return;
+    }
+
+    this.validarFirmanteForm.controls.documento.setValue(documento, { emitEvent: false });
+    this.validarFirmanteForm.controls.documento.disable({ emitEvent: false });
+  }
+
+  private obtenerDocumentoAutenticado(): number | null {
+    const userStorage = localStorage.getItem('user');
+    if (!userStorage) {
+      return null;
+    }
+
+    try {
+      const usuario = JSON.parse(atob(userStorage)) as UsuarioAutenticadoStorage;
+      const documento = usuario.userService?.documento ?? usuario.user?.documento;
+      const documentoNumerico = Number(documento);
+      return Number.isInteger(documentoNumerico) && documentoNumerico > 0 ? documentoNumerico : null;
+    } catch {
+      return null;
+    }
   }
 }

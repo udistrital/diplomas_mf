@@ -49,6 +49,7 @@ describe('CargarFirmaComponent', () => {
   let revokeUrlSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
+    localStorage.clear();
     objectUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:preview');
     revokeUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
 
@@ -64,8 +65,30 @@ describe('CargarFirmaComponent', () => {
   });
 
   afterEach(() => {
+    localStorage.clear();
     objectUrlSpy.mockRestore();
     revokeUrlSpy.mockRestore();
+  });
+
+
+  it('precarga y bloquea el documento del usuario autenticado', () => {
+    fixture.destroy();
+    localStorage.setItem('user', btoa(JSON.stringify({
+      user: { documento: '1111111111' },
+      userService: { documento: '1023026828' }
+    })));
+
+    fixture = TestBed.createComponent(CargarFirmaComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const control = component.validarFirmanteForm.controls.documento;
+    const input = fixture.debugElement.query(By.css('#documento')).nativeElement as HTMLInputElement;
+
+    expect(control.value).toBe(1023026828);
+    expect(control.disabled).toBe(true);
+    expect(input.disabled).toBe(true);
+    expect(input.value).toBe('1023026828');
   });
 
   it('TEST-FIRMA-003 no habilita cargue sin firmante validado', () => {
@@ -112,6 +135,30 @@ describe('CargarFirmaComponent', () => {
 
     expect(component.estado()).toBe('exito');
     expect(component.resultado()?.enlace_firma).toBe('uuid-firma');
+  });
+
+  it('muestra la firma registrada si el firmante ya tiene una activa', async () => {
+    api.getFirmanteActivo.mockReturnValueOnce(of({
+      ...firmante,
+      enlace_firma: 'uuid-firma-existente',
+      firma_imagen: 'data:image/png;base64,AAAA',
+      firma_firmante: {
+        id: 2,
+        documento_identidad: 10000000,
+        enlace_firma: 'uuid-firma-existente',
+        activo: true
+      }
+    }));
+    component.validarFirmanteForm.controls.documento.setValue(10000000);
+
+    await component.validarFirmante();
+    fixture.detectChanges();
+
+    expect(component.enlaceFirmaActual()).toBe('uuid-firma-existente');
+    expect(component.firmaImagenActual()).toBe('data:image/png;base64,AAAA');
+    expect(fixture.nativeElement.textContent).toContain('uuid-firma-existente');
+    const image = fixture.debugElement.query(By.css('.firma-registrada__preview img')).nativeElement as HTMLImageElement;
+    expect(image.src).toContain('data:image/png;base64,AAAA');
   });
 
   it('TEST-FIRMA-008 muestra error comprensible si falla backend', async () => {

@@ -78,4 +78,24 @@ describe('DiplomasApiService', () => {
       }
     });
   });
+
+  it('envia correctamente POST /v1/ceremonias', () => {
+    const payload = {
+      fecha_ceremonia: '2026-11-20',
+      lugar: 'Auditorio Mayor',
+      cantidad_estudiantes_programada: 40,
+      observacion: 'Ceremonia ordinaria',
+      documento_identidad_secretario: 1023026828
+    };
+
+    service.crearCeremonia(payload).subscribe((result) => {
+      expect(result.ceremonia.id).toBe(99);
+    });
+
+    const req = httpMock.expectOne('http://diplomas.local/v1/ceremonias');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(payload);
+    req.flush({ ceremonia: { id: 99, lugar: 'Auditorio Mayor', cantidad_estudiantes_programada: 40, activo: true }, facultad: { id: 100, facultad_id: 158, programa_academico_id: 0, activo: true }, secretario_academico: { rol: 'secretario_academico', orden: 1, cargo_id: 158, cargo: 'SECRETARIO ACADEMICO', nombre: 'Secretaria', documento_identidad: 1023026828 } });
+  });
+
 });

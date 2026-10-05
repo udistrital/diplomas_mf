@@ -5,6 +5,9 @@ export interface FirmanteActivo {
   cargo: string;
   nombre: string;
   documento_identidad: number;
+  enlace_firma?: string;
+  firma_imagen?: string;
+  firma_firmante?: FirmaFirmanteCrudResponse;
 }
 
 export interface SubirFirmaFirmanteRequest {

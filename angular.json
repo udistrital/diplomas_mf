@@ -49,8 +49,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "8kB",
-                  "maximumError": "12kB"
+                  "maximumWarning": "10kB",
+                  "maximumError": "14kB"
                 }
               ],
               "outputHashing": "all",
@@ -87,6 +87,18 @@
                   "with": "src/environments/environment.production.ts"
                 }
               ]
+            },
+            "single-spa-local": {
+              "browser": "src/main.single-spa.ts",
+              "outputHashing": "none",
+              "deployUrl": "http://localhost:4227/",
+              "baseHref": "/",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.development.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
@@ -99,6 +111,9 @@
             },
             "development": {
               "buildTarget": "diplomas_mf:build:development"
+            },
+            "single-spa-local": {
+              "buildTarget": "diplomas_mf:build:single-spa-local"
             }
           },
           "defaultConfiguration": "development",

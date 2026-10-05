@@ -104,6 +104,63 @@ button mat-progress-spinner {
   overflow-wrap: anywhere;
 }
 
+
+.firma-registrada {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid #b7e0c5;
+  border-radius: 8px;
+  background: #f0fbf4;
+}
+
+.firma-registrada__title {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.firma-registrada mat-icon {
+  color: #16794c;
+}
+
+.firma-registrada span {
+  display: block;
+  color: #16794c;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.firma-registrada strong {
+  display: block;
+  margin-top: 2px;
+  color: #1f2937;
+  overflow-wrap: anywhere;
+}
+
+.firma-registrada p {
+  margin: 0;
+  color: #52616f;
+}
+
+.firma-registrada__preview {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  padding: 14px;
+  border: 1px solid #cfeadb;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.firma-registrada__preview img {
+  max-width: min(100%, 420px);
+  max-height: 150px;
+  object-fit: contain;
+}
+
 .upload-zone {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

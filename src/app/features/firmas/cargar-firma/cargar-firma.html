@@ -69,6 +69,25 @@
           </div>
         </section>
       }
+
+      @if (enlaceFirmaActual(); as enlaceFirma) {
+        <section class="firma-registrada" aria-label="Firma registrada">
+          <div class="firma-registrada__title">
+            <mat-icon aria-hidden="true">task_alt</mat-icon>
+            <div>
+              <span>Firma registrada</span>
+              <strong>{{ enlaceFirma }}</strong>
+            </div>
+          </div>
+          @if (firmaImagenActual(); as firmaImagen) {
+            <div class="firma-registrada__preview">
+              <img [src]="firmaImagen" alt="Firma registrada del firmante" />
+            </div>
+          } @else {
+            <p>No fue posible previsualizar la imagen registrada.</p>
+          }
+        </section>
+      }
     </mat-card-content>
   </mat-card>
 

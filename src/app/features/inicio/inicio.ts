@@ -32,7 +32,8 @@ export class InicioComponent {
       titulo: 'Gestionar ceremonias',
       descripcion: 'Programacion y asociacion de facultades, programas y estudiantes.',
       icono: 'event',
-      habilitado: false
+      ruta: '/ceremonias',
+      habilitado: true
     }
   ];
 }

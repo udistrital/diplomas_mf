@@ -8,7 +8,8 @@
     "build": "ng build",
     "build:single-spa": "ng build --configuration single-spa",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "serve:single-spa": "ng serve --configuration single-spa-local --port 4227 --host 0.0.0.0"
   },
   "dependencies": {
     "@angular/animations": "21.2.0",

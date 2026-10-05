@@ -1,0 +1,145 @@
+<main class="ceremonia-page" aria-labelledby="titulo-ceremonia">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Diplomas digitales</p>
+      <h1 id="titulo-ceremonia">Gestión de ceremonias de grado</h1>
+      <p>Parametrice cupos y asigne programas completos mediante un flujo guiado.</p>
+    </div>
+    <button mat-stroked-button color="primary" type="button" (click)="cargarTablero()" [disabled]="cargando()"><mat-icon>refresh</mat-icon><span>Actualizar</span></button>
+  </header>
+
+  @if (tablero(); as data) {
+    <section class="summary-panel" aria-label="Resumen de ceremonias">
+      <article><span>Ceremonias</span><strong>{{ data.total_ceremonias }}</strong></article>
+      <article><span>Cupos</span><strong>{{ data.total_cupos }}</strong></article>
+      <article><span>Asignados</span><strong>{{ data.cupos_asignados }}</strong></article>
+      <article><span>Programas pendientes</span><strong>{{ programasPendientes().length }}</strong></article>
+    </section>
+  }
+
+  <section class="stack-layout">
+    <mat-card class="ceremonia-card form-card" appearance="outlined">
+      <mat-card-content>
+        <div class="card-title"><mat-icon>event_available</mat-icon><h2>Nueva ceremonia</h2></div>
+        <form [formGroup]="form" (ngSubmit)="guardar()">
+          <div class="form-grid">
+            <mat-form-field appearance="outline"><mat-label>Fecha</mat-label><input matInput [matDatepicker]="picker" formControlName="fecha_ceremonia" readonly /><mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle><mat-datepicker #picker></mat-datepicker></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Cupos</mat-label><input matInput type="number" min="1" formControlName="cantidad_estudiantes_programada" /></mat-form-field>
+          </div>
+          <mat-form-field appearance="outline"><mat-label>Lugar</mat-label><input matInput formControlName="lugar" /></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Observación</mat-label><textarea matInput rows="2" formControlName="observacion"></textarea></mat-form-field>
+          @if (error()) {<p class="message message--error" role="alert">{{ error() }}</p>}
+          <div class="actions"><button mat-button type="button" (click)="limpiarFormulario()">Cancelar</button><button class="save-button" mat-raised-button type="submit" [disabled]="form.invalid || guardando()">@if (guardando()) {<mat-progress-spinner diameter="16" mode="indeterminate" />} @else {<mat-icon>save</mat-icon>}<span>Crear ceremonia</span></button></div>
+        </form>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="ceremonia-card board-card" appearance="outlined">
+      <mat-card-content>
+        <div class="card-title"><mat-icon>dashboard</mat-icon><h2>Ceremonias</h2></div>
+        @if (cargando()) {
+          <div class="loading"><mat-progress-spinner diameter="24" mode="indeterminate" /><span>Cargando ceremonias</span></div>
+        } @else if (tablero()?.ceremonias?.length) {
+          <div class="ceremonias-list">
+            @for (ceremonia of tablero()?.ceremonias; track ceremonia.id) {
+              <article class="ceremonia-item">
+                <div class="date-box"><strong>{{ fechaLegible(ceremonia.fecha_ceremonia) }}</strong><span>Fecha</span></div>
+                <div class="ceremony-info"><strong>{{ ceremonia.lugar }}</strong>@if (ceremonia.observacion) {<small>{{ ceremonia.observacion }}</small>}</div>
+                <div class="capacity"><strong>{{ ceremonia.cupos_asignados }}</strong><span>asignados</span></div>
+                <div class="capacity capacity--available"><strong>{{ ceremonia.cupos_disponibles }}</strong><span>libres</span></div>
+                <div class="flow-state" [class.flow-state--locked]="ceremonia.puede_editar === false"><strong>{{ ceremonia.estado_flujo || 'PARAMETRIZADA' }}</strong>@if (ceremonia.motivo_bloqueo) {<span>{{ ceremonia.motivo_bloqueo }}</span>}</div>
+                <div class="item-actions"><button mat-icon-button type="button" aria-label="Editar ceremonia" (click)="editar(ceremonia)" [disabled]="ceremonia.puede_editar === false"><mat-icon>edit</mat-icon></button><button mat-icon-button color="warn" type="button" aria-label="Eliminar ceremonia" (click)="eliminar(ceremonia)" [disabled]="ceremonia.puede_eliminar === false"><mat-icon>delete</mat-icon></button></div>
+              </article>
+            }
+          </div>
+        } @else {<p class="empty">No hay ceremonias parametrizadas para esta facultad.</p>}
+      </mat-card-content>
+    </mat-card>
+
+    <div class="program-columns">
+      <mat-card class="ceremonia-card programs-card" appearance="outlined">
+        <mat-card-content>
+          <div class="card-title"><mat-icon>groups</mat-icon><h2>Programas pendientes</h2></div>
+          <p class="hint">Seleccione un programa para revisar estudiantes y asignarlo a una ceremonia.</p>
+          <div class="program-grid">
+            @for (programa of programasPendientes(); track programa.programa_academico_id) {
+              <button class="program-item program-button" type="button" (click)="seleccionarPrograma(programa)"><span>{{ programa.nombre }}</span><strong>{{ programa.cantidad }}</strong></button>
+            } @empty {<p class="empty">No hay programas pendientes por asignar.</p>}
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="ceremonia-card assigned-card" appearance="outlined">
+        <mat-card-content>
+          <div class="card-title"><mat-icon>task_alt</mat-icon><h2>Programas asignados</h2></div>
+          <div class="assigned-list">
+            @for (programa of programasAsignados(); track programa.programa_academico_id) {
+              <article class="assigned-item" [class.assigned-item--locked]="programa.puede_reasignar === false"><div><strong>{{ programa.nombre }}</strong><span>{{ programa.cantidad }} estudiantes · {{ fechaLegible(programa.fecha_ceremonia || '') }} · {{ programa.lugar }}</span><small>{{ programa.estado_flujo || 'ASIGNADO' }}</small></div><button mat-icon-button color="warn" type="button" aria-label="Quitar programa" (click)="quitarPrograma(programa)" [disabled]="programa.puede_reasignar === false"><mat-icon>{{ programa.puede_reasignar === false ? 'lock' : 'link_off' }}</mat-icon></button></article>
+            } @empty {<p class="empty">No hay programas asignados.</p>}
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  </section>
+
+  @if (editModalAbierto()) {
+    <section class="modal-backdrop modal-backdrop--front" role="dialog" aria-modal="true" aria-labelledby="editar-ceremonia-title">
+      <div class="modal-panel">
+        <header class="modal-header">
+          <div><p class="eyebrow">Edición</p><h2 id="editar-ceremonia-title">Editar ceremonia</h2><span>Ajuste fecha, lugar, observación o cupos disponibles.</span></div>
+          <button mat-icon-button type="button" aria-label="Cerrar edición" (click)="cerrarEdicion()"><mat-icon>close</mat-icon></button>
+        </header>
+        <form class="modal-form" [formGroup]="form" (ngSubmit)="guardar()">
+          @if (ceremoniaEditando(); as ceremonia) {
+            @if (ceremonia.cupos_asignados > 0) {
+              <p class="message message--info">Esta ceremonia ya tiene {{ ceremonia.cupos_asignados }} estudiantes asignados. Los cupos no pueden quedar por debajo de esa cantidad.</p>
+            }
+          }
+          <div class="form-grid">
+            <mat-form-field appearance="outline"><mat-label>Fecha</mat-label><input matInput [matDatepicker]="editPicker" formControlName="fecha_ceremonia" readonly /><mat-datepicker-toggle matIconSuffix [for]="editPicker"></mat-datepicker-toggle><mat-datepicker #editPicker></mat-datepicker></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Cupos</mat-label><input matInput type="number" min="1" formControlName="cantidad_estudiantes_programada" /></mat-form-field>
+          </div>
+          <mat-form-field appearance="outline"><mat-label>Lugar</mat-label><input matInput formControlName="lugar" /></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Observación</mat-label><textarea matInput rows="3" formControlName="observacion"></textarea></mat-form-field>
+          <footer class="modal-actions"><button mat-button type="button" (click)="cerrarEdicion()">Cancelar</button><button class="save-button" mat-raised-button type="submit" [disabled]="form.invalid || guardando()">@if (guardando()) {<mat-progress-spinner diameter="16" mode="indeterminate" />} @else {<mat-icon>save</mat-icon>}<span>Guardar cambios</span></button></footer>
+        </form>
+      </div>
+    </section>
+  }
+
+  @if (detalleAbierto()) {
+    <section class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="detalle-programa-title">
+      <div class="modal-panel modal-panel--wide">
+        <header class="modal-header">
+          <div><p class="eyebrow">Programa seleccionado</p><h2 id="detalle-programa-title">{{ detallePrograma()?.nombre || programaAsignacion()?.nombre }}</h2><span>{{ detallePrograma()?.total || programaAsignacion()?.cantidad || 0 }} estudiantes</span></div>
+          <button mat-icon-button type="button" aria-label="Cerrar detalle" (click)="cerrarDetalle()"><mat-icon>close</mat-icon></button>
+        </header>
+        @if (cargandoDetalle()) {
+          <div class="loading modal-loading"><mat-progress-spinner diameter="28" mode="indeterminate" /><span>Cargando datos de estudiantes</span></div>
+        } @else {
+          <div class="student-table">
+            <div class="student-table__head"><span>Estudiante</span><span>Código</span><span>Documento</span><span>Título</span></div>
+            @for (estudiante of detallePrograma()?.estudiantes; track estudiante.CodigoEstudiante) {
+              @let datos = datosDiploma(estudiante);
+              <article class="student-row"><strong>{{ datos?.nombre || 'Sin nombre registrado' }}</strong><span>{{ estudiante.CodigoEstudiante }}</span><span>{{ datos?.tipo_documento || 'Doc.' }} {{ datos?.numero_identificacion || 'Sin número' }}</span><small>{{ datos?.titulo || 'Sin título registrado' }}</small></article>
+            } @empty {<p class="empty">No hay estudiantes para este programa.</p>}
+          </div>
+        }
+        <footer class="modal-actions"><button mat-button type="button" (click)="cerrarDetalle()">Cerrar</button><button class="save-button" mat-raised-button type="button" (click)="abrirSelectorCeremonia()" [disabled]="!programaAsignacion() || cargandoDetalle()"><mat-icon>event</mat-icon><span>Asignar a ceremonia</span></button></footer>
+      </div>
+    </section>
+  }
+
+  @if (selectorCeremoniaAbierto()) {
+    <section class="modal-backdrop modal-backdrop--front" role="dialog" aria-modal="true" aria-labelledby="selector-ceremonia-title">
+      <div class="modal-panel">
+        <header class="modal-header"><div><p class="eyebrow">Asignación</p><h2 id="selector-ceremonia-title">Seleccione una ceremonia</h2><span>{{ programaAsignacion()?.cantidad }} estudiantes serán asignados.</span></div><button mat-icon-button type="button" aria-label="Cerrar selección" (click)="selectorCeremoniaAbierto.set(false)"><mat-icon>close</mat-icon></button></header>
+        <div class="ceremony-picker-list">
+          @for (ceremonia of ceremoniasDisponiblesParaPrograma(); track ceremonia.id) {
+            <button class="ceremony-picker" type="button" (click)="asignarACeremonia(ceremonia)" [disabled]="asignando()"><strong>{{ fechaLegible(ceremonia.fecha_ceremonia) }}</strong><span>{{ ceremonia.lugar }}</span><small>{{ ceremonia.cupos_disponibles }} cupos libres</small></button>
+          } @empty {<p class="empty">No hay ceremonias con cupos suficientes para este programa completo.</p>}
+        </div>
+      </div>
+    </section>
+  }
+</main>

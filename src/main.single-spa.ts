@@ -12,6 +12,19 @@ if (environment.production) {
   enableProdMode();
 }
 
+const domElementGetter = (): HTMLElement => {
+  const containerId = 'single-spa-application:@udistrital/diplomas-mf';
+  let container = document.getElementById(containerId);
+
+  if (!container) {
+    container = document.createElement('div');
+    container.id = containerId;
+    document.body.appendChild(container);
+  }
+
+  return container;
+};
+
 const lifecycles = singleSpaAngular({
   bootstrapFunction: () => {
     const platformRef = platformBrowser(provideSingleSpaPlatform());
@@ -20,7 +33,8 @@ const lifecycles = singleSpaAngular({
       providers: [...appConfig.providers, provideSingleSpa()]
     }, { platformRef });
   },
-  template: '<diplomas-mf />',
+  template: '<diplomas-mf></diplomas-mf>',
+  domElementGetter,
   Router,
   NavigationStart,
   NgZone

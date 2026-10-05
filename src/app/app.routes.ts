@@ -13,5 +13,10 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadChildren: () => import('./features/firmas/firmas.routes').then((m) => m.FIRMAS_ROUTES)
   },
+  {
+    path: 'ceremonias',
+    canActivate: [authGuard],
+    loadChildren: () => import('./features/ceremonias/ceremonias.routes').then((m) => m.CEREMONIAS_ROUTES)
+  },
   { path: '**', redirectTo: '' }
 ];
