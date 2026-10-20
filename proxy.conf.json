@@ -7,5 +7,10 @@
       "^/api": ""
     },
     "logLevel": "debug"
+  },
+  "/v1/**": {
+    "target": "http://localhost:8090",
+    "secure": false,
+    "changeOrigin": true
   }
 }

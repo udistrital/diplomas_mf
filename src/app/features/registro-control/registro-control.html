@@ -1,0 +1,53 @@
+<section class="registro-control">
+  <header>
+    <mat-icon>inventory_2</mat-icon>
+    <div>
+      <h1>Registro y Control</h1>
+      <p>Descargue los diplomas originales.</p>
+    </div>
+  </header>
+
+  <mat-card>
+    <mat-card-header><mat-card-title>Archivo institucional de diplomas</mat-card-title></mat-card-header>
+    <mat-card-content>
+      <p>El ZIP organiza los PDF en carpetas por facultad y ceremonia. Deje los filtros vacíos para incluir todos los
+        diplomas finalizados.</p>
+      @if (cargando()) {
+      <div class="cargando"><mat-progress-spinner diameter="28" mode="indeterminate" /> Cargando opciones disponibles
+      </div>
+      } @else {
+      <div class="filtros">
+        <mat-form-field appearance="outline">
+          <mat-label>Facultad</mat-label>
+          <mat-select [ngModel]="facultadId()" (ngModelChange)="seleccionarFacultad($event)">
+            <mat-option [value]="null">Todas las facultades</mat-option>
+            @for (facultad of catalogo().facultades; track facultad.id) {
+            <mat-option [value]="facultad.id">{{ facultad.nombre }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Ceremonia</mat-label>
+          <mat-select [ngModel]="ceremoniaId()" (ngModelChange)="seleccionarCeremonia($event)"
+            [disabled]="facultadId() === null">
+            <mat-option [value]="null">Todas las ceremonias</mat-option>
+            @for (ceremonia of ceremonias(); track ceremonia.id) {
+            <mat-option [value]="ceremonia.id">
+              {{ ceremonia.fecha | date:'dd/MM/yyyy' }} · {{ ceremonia.lugar }} · {{ ceremonia.diplomas_disponibles }}
+              diploma(s)
+            </mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </div>
+      }
+      <button mat-flat-button color="primary" type="button"
+        [disabled]="descargando() || cargando() || diplomasDisponibles() === 0" (click)="descargar()">
+        @if (descargando()) { <mat-progress-spinner diameter="20" mode="indeterminate" /> }
+        @else { <mat-icon>folder_zip</mat-icon> }
+        {{ descargando() ? 'Preparando ZIP' : 'Descargar diplomas' }}
+      </button>
+      @if (mensaje()) { <p class="mensaje">{{ mensaje() }}</p> }
+    </mat-card-content>
+  </mat-card>
+</section>
