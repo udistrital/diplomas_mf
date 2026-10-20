@@ -19,16 +19,40 @@ const firmante = {
   documento_identidad: 10000000
 };
 
+const firmanteConFirma = {
+  ...firmante,
+  enlace_firma: 'uuid-firma-existente',
+  firma_imagen: 'data:image/png;base64,AAAA',
+  firma_firmante: {
+    id: 2,
+    documento_identidad: 10000000,
+    enlace_firma: 'uuid-firma-existente',
+    activo: true
+  }
+};
+
+const firmanteActualizado = {
+  ...firmante,
+  enlace_firma: 'uuid-firma-nueva',
+  firma_imagen: 'data:image/png;base64,BBBB',
+  firma_firmante: {
+    id: 3,
+    documento_identidad: 10000000,
+    enlace_firma: 'uuid-firma-nueva',
+    activo: true
+  }
+};
+
 class DiplomasApiServiceMock {
   getFirmanteActivo = vi.fn(() => of(firmante));
   subirFirma = vi.fn(() => of({
-    firmante,
-    enlace_firma: 'uuid-firma',
+    firmante: firmanteActualizado,
+    enlace_firma: 'uuid-firma-nueva',
     documento: {},
     firma_firmante: {
-      id: 1,
+      id: 3,
       documento_identidad: 10000000,
-      enlace_firma: 'uuid-firma',
+      enlace_firma: 'uuid-firma-nueva',
       activo: true
     }
   }));
@@ -70,7 +94,6 @@ describe('CargarFirmaComponent', () => {
     revokeUrlSpy.mockRestore();
   });
 
-
   it('precarga y bloquea el documento del usuario autenticado', () => {
     fixture.destroy();
     localStorage.setItem('user', btoa(JSON.stringify({
@@ -89,6 +112,22 @@ describe('CargarFirmaComponent', () => {
     expect(control.disabled).toBe(true);
     expect(input.disabled).toBe(true);
     expect(input.value).toBe('1023026828');
+  });
+
+  it('auto-valida el firmante al cargar el componente', async () => {
+    fixture.destroy();
+    localStorage.setItem('user', btoa(JSON.stringify({
+      user: { documento: '1111111111' },
+      userService: { documento: '1023026828' }
+    })));
+
+    fixture = TestBed.createComponent(CargarFirmaComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(api.getFirmanteActivo).toHaveBeenCalledWith(1023026828);
+    expect(component.firmante()).toEqual(firmante);
   });
 
   it('TEST-FIRMA-003 no habilita cargue sin firmante validado', () => {
@@ -134,30 +173,19 @@ describe('CargarFirmaComponent', () => {
     await component.subirFirma();
 
     expect(component.estado()).toBe('exito');
-    expect(component.resultado()?.enlace_firma).toBe('uuid-firma');
+    expect(component.resultado()?.enlace_firma).toBe('uuid-firma-nueva');
   });
 
   it('muestra la firma registrada si el firmante ya tiene una activa', async () => {
-    api.getFirmanteActivo.mockReturnValueOnce(of({
-      ...firmante,
-      enlace_firma: 'uuid-firma-existente',
-      firma_imagen: 'data:image/png;base64,AAAA',
-      firma_firmante: {
-        id: 2,
-        documento_identidad: 10000000,
-        enlace_firma: 'uuid-firma-existente',
-        activo: true
-      }
-    }));
+    api.getFirmanteActivo.mockReturnValueOnce(of(firmanteConFirma));
     component.validarFirmanteForm.controls.documento.setValue(10000000);
-
     await component.validarFirmante();
     fixture.detectChanges();
 
     expect(component.enlaceFirmaActual()).toBe('uuid-firma-existente');
     expect(component.firmaImagenActual()).toBe('data:image/png;base64,AAAA');
     expect(fixture.nativeElement.textContent).toContain('uuid-firma-existente');
-    const image = fixture.debugElement.query(By.css('.firma-registrada__preview img')).nativeElement as HTMLImageElement;
+    const image = fixture.debugElement.query(By.css('.firma-actual__preview img')).nativeElement as HTMLImageElement;
     expect(image.src).toContain('data:image/png;base64,AAAA');
   });
 
@@ -173,5 +201,94 @@ describe('CargarFirmaComponent', () => {
     expect(component.estado()).toBe('error');
     expect(component.error()).toContain('No fue posible cargar la firma');
     consoleError.mockRestore();
+  });
+
+  it('muestra Firma actual en la tarjeta de Firma cuando existe firma registrada', async () => {
+    api.getFirmanteActivo.mockReturnValueOnce(of(firmanteConFirma));
+    component.validarFirmanteForm.controls.documento.setValue(10000000);
+    await component.validarFirmante();
+    fixture.detectChanges();
+
+    expect(component.tieneFirmaRegistrada()).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Firma actual');
+    expect(fixture.nativeElement.textContent).toContain('¿Desea reemplazarla?');
+    expect(fixture.nativeElement.textContent).toContain('Seleccionar nueva imagen');
+  });
+
+  it('no muestra Firma actual cuando no hay firma registrada', async () => {
+    component.validarFirmanteForm.controls.documento.setValue(10000000);
+    await component.validarFirmante();
+    fixture.detectChanges();
+
+    expect(component.tieneFirmaRegistrada()).toBe(false);
+    expect(fixture.nativeElement.textContent).not.toContain('Firma actual');
+    expect(fixture.nativeElement.textContent).toContain('Seleccione una imagen PNG de la firma');
+  });
+
+  it('al seleccionar nuevo archivo muestra preview temporal y permite reemplazar', async () => {
+    api.getFirmanteActivo.mockReturnValueOnce(of(firmanteConFirma));
+    component.validarFirmanteForm.controls.documento.setValue(10000000);
+    await component.validarFirmante();
+    fixture.detectChanges();
+
+    const nuevoArchivo = new File(['png'], 'nueva-firma.png', { type: 'image/png' });
+    component.onArchivoSeleccionado(nuevoArchivo);
+    fixture.detectChanges();
+
+    expect(component.mostrandoPreviewNuevo()).toBe(true);
+    expect(component.firmaAnterior()).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Nueva firma seleccionada');
+    expect(fixture.nativeElement.textContent).toContain('Reemplazar');
+  });
+
+  it('restaura firma anterior si ocurre error al actualizar', async () => {
+    api.getFirmanteActivo.mockReturnValueOnce(of(firmanteConFirma));
+    api.subirFirma.mockReturnValueOnce(throwError(() => new Error('Error de servidor')));
+    component.validarFirmanteForm.controls.documento.setValue(10000000);
+    await component.validarFirmante();
+    fixture.detectChanges();
+
+    const nuevoArchivo = new File(['png'], 'nueva-firma.png', { type: 'image/png' });
+    component.onArchivoSeleccionado(nuevoArchivo);
+    await component.subirFirma();
+    fixture.detectChanges();
+
+    expect(component.estado()).toBe('error');
+    expect(component.enlaceFirmaActual()).toBe('uuid-firma-existente');
+    // Verificar que se abrió snackbar de error
+    // (snackbar se renderiza en portal, no en el componente)
+  });
+
+  it('actualiza firma guardada tras carga exitosa', async () => {
+    api.getFirmanteActivo.mockReturnValueOnce(of(firmanteConFirma));
+    component.validarFirmanteForm.controls.documento.setValue(10000000);
+    await component.validarFirmante();
+    fixture.detectChanges();
+
+    const nuevoArchivo = new File(['png'], 'nueva-firma.png', { type: 'image/png' });
+    component.onArchivoSeleccionado(nuevoArchivo);
+    await component.subirFirma();
+    fixture.detectChanges();
+
+    expect(component.estado()).toBe('exito');
+    expect(component.enlaceFirmaActual()).toBe('uuid-firma-nueva');
+    expect(component.firmaImagenActual()).toBe('data:image/png;base64,BBBB');
+    expect(component.firmaAnterior()).toBeNull();
+  });
+
+  it('limpiar archivo restaura firma anterior y preview', async () => {
+    api.getFirmanteActivo.mockReturnValueOnce(of(firmanteConFirma));
+    component.validarFirmanteForm.controls.documento.setValue(10000000);
+    await component.validarFirmante();
+    fixture.detectChanges();
+
+    const nuevoArchivo = new File(['png'], 'nueva-firma.png', { type: 'image/png' });
+    component.onArchivoSeleccionado(nuevoArchivo);
+    component.limpiarArchivo();
+    fixture.detectChanges();
+
+    expect(component.archivo()).toBeNull();
+    expect(component.mostrandoPreviewNuevo()).toBe(false);
+    expect(component.enlaceFirmaActual()).toBe('uuid-firma-existente');
   });
 });

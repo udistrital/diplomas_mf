@@ -56,6 +56,30 @@
       </mat-card-content>
     </mat-card>
 
+    <mat-card class="ceremonia-card registro-card" appearance="outlined">
+      <mat-card-content>
+        <div class="card-title card-title--split">
+          <div><mat-icon>fact_check</mat-icon><h2>Parametrización de registro</h2></div>
+          @if (parametrizacionRegistro()?.id) {<span>Activa para facultad {{ parametrizacionRegistro()?.facultad_id }}</span>} @else {<span>Pendiente para esta vigencia</span>}
+        </div>
+        <form class="registro-form" [formGroup]="registroForm" (ngSubmit)="guardarParametrizacionRegistro()">
+          <div class="registro-grid">
+            <mat-form-field appearance="outline"><mat-label>Vigencia</mat-label><input matInput type="number" formControlName="vigencia" (change)="cargarParametrizacionRegistro()" /></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Libro inicial</mat-label><input matInput type="number" min="1" formControlName="libro_inicial" /></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Folio inicial</mat-label><input matInput type="number" min="1" formControlName="folio_inicial" /></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Registro inicial</mat-label><input matInput type="number" min="1" formControlName="registro_inicial" /></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Consecutivo facultad</mat-label><input matInput type="number" min="1" formControlName="consecutivo_facultad_inicial" /></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Folios por libro</mat-label><input matInput type="number" min="1" formControlName="folios_por_libro" /></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Registros por folio</mat-label><input matInput type="number" min="1" formControlName="registros_por_folio" /></mat-form-field>
+          </div>
+          <div class="actions compact-actions">
+            <button mat-stroked-button color="primary" type="button" (click)="cargarParametrizacionRegistro()">Consultar</button>
+            <button class="save-button" mat-raised-button type="submit" [disabled]="registroForm.invalid || guardando()">@if (guardando()) {<mat-progress-spinner diameter="16" mode="indeterminate" />} @else {<mat-icon>save</mat-icon>}<span>Guardar registro</span></button>
+          </div>
+        </form>
+      </mat-card-content>
+    </mat-card>
+
     <div class="program-columns">
       <mat-card class="ceremonia-card programs-card" appearance="outlined">
         <mat-card-content>
@@ -116,6 +140,8 @@
         </header>
         @if (cargandoDetalle()) {
           <div class="loading modal-loading"><mat-progress-spinner diameter="28" mode="indeterminate" /><span>Cargando datos de estudiantes</span></div>
+        } @else if (error() && !detallePrograma()) {
+          <div class="modal-message"><p class="message message--error" role="alert">{{ error() }}</p></div>
         } @else {
           <div class="student-table">
             <div class="student-table__head"><span>Estudiante</span><span>Código</span><span>Documento</span><span>Título</span></div>
@@ -125,7 +151,7 @@
             } @empty {<p class="empty">No hay estudiantes para este programa.</p>}
           </div>
         }
-        <footer class="modal-actions"><button mat-button type="button" (click)="cerrarDetalle()">Cerrar</button><button class="save-button" mat-raised-button type="button" (click)="abrirSelectorCeremonia()" [disabled]="!programaAsignacion() || cargandoDetalle()"><mat-icon>event</mat-icon><span>Asignar a ceremonia</span></button></footer>
+        <footer class="modal-actions"><button mat-button type="button" (click)="cerrarDetalle()">Cerrar</button><button class="save-button" mat-raised-button type="button" (click)="abrirSelectorCeremonia()" [disabled]="!programaAsignacion() || cargandoDetalle() || !detallePrograma()?.estudiantes?.length"><mat-icon>event</mat-icon><span>Asignar a ceremonia</span></button></footer>
       </div>
     </section>
   }

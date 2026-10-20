@@ -104,48 +104,41 @@ button mat-progress-spinner {
   overflow-wrap: anywhere;
 }
 
-
-.firma-registrada {
+.firma-actual {
   display: grid;
   gap: 14px;
-  margin-top: 16px;
-  padding: 14px 16px;
+  padding: 18px;
   border: 1px solid #b7e0c5;
   border-radius: 8px;
   background: #f0fbf4;
 }
 
-.firma-registrada__title {
+.firma-actual__header {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 12px;
   align-items: center;
 }
 
-.firma-registrada mat-icon {
+.firma-actual__header mat-icon {
   color: #16794c;
 }
 
-.firma-registrada span {
+.firma-actual__header span {
   display: block;
   color: #16794c;
   font-size: 0.82rem;
   font-weight: 700;
 }
 
-.firma-registrada strong {
+.firma-actual__header strong {
   display: block;
   margin-top: 2px;
   color: #1f2937;
   overflow-wrap: anywhere;
 }
 
-.firma-registrada p {
-  margin: 0;
-  color: #52616f;
-}
-
-.firma-registrada__preview {
+.firma-actual__preview {
   display: grid;
   place-items: center;
   min-height: 120px;
@@ -155,10 +148,17 @@ button mat-progress-spinner {
   background: #ffffff;
 }
 
-.firma-registrada__preview img {
+.firma-actual__preview img {
   max-width: min(100%, 420px);
   max-height: 150px;
   object-fit: contain;
+}
+
+.firma-actual__hint {
+  margin: 4px 0 0;
+  color: #16794c;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .upload-zone {
@@ -215,6 +215,11 @@ button mat-progress-spinner {
   background: #ffffff;
 }
 
+.preview--nuevo {
+  border-color: #ffb347;
+  background: #fff8f0;
+}
+
 .preview img {
   width: 100%;
   max-height: 120px;
@@ -227,6 +232,12 @@ button mat-progress-spinner {
 .preview__detail p {
   margin: 4px 0 0;
   color: #64748b;
+}
+
+.preview__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .actions {

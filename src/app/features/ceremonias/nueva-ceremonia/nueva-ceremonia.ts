@@ -12,7 +12,7 @@ import { provideNativeDateAdapter } from '@angular/material/core';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { CeremoniaResumen, DatosDiplomaEstudiante, EstudianteProgramaCeremonia, EstudiantesProgramaCeremoniaResult, ProgramaAprobadoResumen, TableroCeremoniasResult } from '../../../core/models/ceremonia.model';
+import { CeremoniaResumen, DatosDiplomaEstudiante, EstudianteProgramaCeremonia, EstudiantesProgramaCeremoniaResult, ParametrizacionRegistro, ProgramaAprobadoResumen, TableroCeremoniasResult } from '../../../core/models/ceremonia.model';
 import { DiplomasApiService } from '../../../core/services/diplomas-api.service';
 
 type EstadoCeremonia = 'idle' | 'cargando' | 'guardando' | 'asignando' | 'detalle' | 'éxito' | 'error';
@@ -45,12 +45,23 @@ export class NuevaCeremoniaComponent implements OnInit {
   readonly detalleAbierto = signal(false);
   readonly selectorCeremoniaAbierto = signal(false);
   readonly documentoSecretario = signal<number | null>(this.obtenerDocumentoAutenticado());
+  readonly parametrizacionRegistro = signal<ParametrizacionRegistro | null>(null);
 
   readonly form = new FormGroup({
     fecha_ceremonia: new FormControl<Date | null>(null, { validators: [Validators.required] }),
     lugar: new FormControl<string>('', { nonNullable: true, validators: [Validators.required] }),
     cantidad_estudiantes_programada: new FormControl<number | null>(null, { validators: [Validators.required, Validators.min(1)] }),
     observacion: new FormControl<string>('', { nonNullable: true })
+  });
+
+  readonly registroForm = new FormGroup({
+    vigencia: new FormControl<number>(new Date().getFullYear(), { nonNullable: true, validators: [Validators.required, Validators.min(2000)] }),
+    libro_inicial: new FormControl<number>(1, { nonNullable: true, validators: [Validators.required, Validators.min(1)] }),
+    folio_inicial: new FormControl<number>(1, { nonNullable: true, validators: [Validators.required, Validators.min(1)] }),
+    registro_inicial: new FormControl<number>(1, { nonNullable: true, validators: [Validators.required, Validators.min(1)] }),
+    consecutivo_facultad_inicial: new FormControl<number>(1, { nonNullable: true, validators: [Validators.required, Validators.min(1)] }),
+    folios_por_libro: new FormControl<number>(200, { nonNullable: true, validators: [Validators.required, Validators.min(1)] }),
+    registros_por_folio: new FormControl<number>(5, { nonNullable: true, validators: [Validators.required, Validators.min(1)] })
   });
 
   readonly guardando = computed(() => this.estado() === 'guardando');
@@ -76,9 +87,64 @@ export class NuevaCeremoniaComponent implements OnInit {
     this.estado.set('cargando');
     try {
       this.tablero.set(await firstValueFrom(this.api.getTableroCeremonias(documento)));
+      this.sincronizarVigenciaRegistro();
+      await this.cargarParametrizacionRegistro();
       this.estado.set('idle');
     } catch (error) {
       this.error.set(error instanceof Error ? error.message : 'No fue posible cargar las ceremonias.');
+      this.estado.set('error');
+    }
+  }
+
+  async cargarParametrizacionRegistro(): Promise<void> {
+    const documento = this.documentoSecretario();
+    const vigencia = Number(this.registroForm.controls.vigencia.value);
+    if (!documento || !vigencia) {
+      return;
+    }
+    try {
+      const parametrizacion = await firstValueFrom(this.api.getParametrizacionRegistro(documento, vigencia));
+      this.parametrizacionRegistro.set(parametrizacion);
+      this.registroForm.patchValue({
+        vigencia,
+        libro_inicial: parametrizacion.libro_inicial || 1,
+        folio_inicial: parametrizacion.folio_inicial || 1,
+        registro_inicial: parametrizacion.registro_inicial || 1,
+        consecutivo_facultad_inicial: parametrizacion.consecutivo_facultad_inicial || 1,
+        folios_por_libro: parametrizacion.folios_por_libro || 200,
+        registros_por_folio: parametrizacion.registros_por_folio || 5
+      });
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'No fue posible cargar la parametrización de registro.');
+      this.estado.set('error');
+    }
+  }
+
+  async guardarParametrizacionRegistro(): Promise<void> {
+    this.registroForm.markAllAsTouched();
+    const documento = this.documentoSecretario();
+    if (!documento || this.registroForm.invalid || this.guardando()) {
+      return;
+    }
+    this.estado.set('guardando');
+    this.error.set(null);
+    try {
+      const payload = {
+        documento_identidad_secretario: documento,
+        vigencia: Number(this.registroForm.controls.vigencia.value),
+        libro_inicial: Number(this.registroForm.controls.libro_inicial.value),
+        folio_inicial: Number(this.registroForm.controls.folio_inicial.value),
+        registro_inicial: Number(this.registroForm.controls.registro_inicial.value),
+        consecutivo_facultad_inicial: Number(this.registroForm.controls.consecutivo_facultad_inicial.value),
+        folios_por_libro: Number(this.registroForm.controls.folios_por_libro.value),
+        registros_por_folio: Number(this.registroForm.controls.registros_por_folio.value)
+      };
+      const result = await firstValueFrom(this.api.guardarParametrizacionRegistro(payload));
+      this.parametrizacionRegistro.set(result);
+      this.estado.set('idle');
+      this.snackBar.open('Parametrización de registro guardada correctamente.', 'Cerrar', { duration: 4500, panelClass: ['snackbar-success'] });
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'No fue posible guardar la parametrización de registro.');
       this.estado.set('error');
     }
   }
@@ -151,6 +217,7 @@ export class NuevaCeremoniaComponent implements OnInit {
       return;
     }
     this.estado.set('detalle');
+    this.error.set(null);
     this.detallePrograma.set(null);
     try {
       this.detallePrograma.set(await firstValueFrom(this.api.getEstudiantesProgramaCeremonia(programa.programa_academico_id, documento)));
@@ -311,6 +378,14 @@ export class NuevaCeremoniaComponent implements OnInit {
     }
     const [year, month, day] = fecha.split('-');
     return `${day}/${month}/${year}`;
+  }
+
+  private sincronizarVigenciaRegistro(): void {
+    const primeraFecha = this.tablero()?.ceremonias?.[0]?.fecha_ceremonia;
+    const year = primeraFecha ? Number(this.fechaInput(primeraFecha).slice(0, 4)) : new Date().getFullYear();
+    if (Number.isInteger(year) && year > 0) {
+      this.registroForm.controls.vigencia.setValue(year);
+    }
   }
 
   private obtenerDocumentoAutenticado(): number | null {
