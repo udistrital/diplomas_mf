@@ -16,28 +16,31 @@
       "prefix": "diplomas-mf",
       "architect": {
         "build": {
-          "builder": "@angular/build:application",
+          "builder": "@angular-builders/custom-webpack:browser",
           "options": {
-            "outputPath": "dist/diplomas_mf",
+            "outputPath": "dist",
             "index": "src/index.html",
-            "browser": "src/main.ts",
-            "polyfills": [
-              "zone.js"
-            ],
+            "main": "src/main.single-spa.ts",
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
+            "customWebpackConfig": {
+              "path": "extra-webpack.config.cjs",
+              "libraryName": "diplomas-mf",
+              "libraryTarget": "umd"
+            },
             "assets": [
               {
                 "glob": "**/*",
                 "input": "public"
               }
             ],
+            "allowedCommonJsDependencies": [
+              "sweetalert2"
+            ],
             "styles": [
               "src/styles.scss"
             ],
-            "scripts": [],
-            "baseHref": "/",
-            "deployUrl": ""
+            "scripts": []
           },
           "configurations": {
             "production": {
@@ -53,9 +56,7 @@
                   "maximumError": "14kB"
                 }
               ],
-              "outputHashing": "all",
-              "baseHref": "/diplomas/",
-              "deployUrl": "/diplomas/",
+              "outputHashing": "none",
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
@@ -64,47 +65,40 @@
               ]
             },
             "development": {
+              "optimization": true,
+              "outputHashing": "none",
+              "sourceMap": false,
+              "namedChunks": false,
+              "buildOptimizer": true,
+              "extractLicenses": true,
+              "baseHref": "/diplomas/",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.development.ts"
+                }
+              ]
+            },
+            "local": {
+              "buildOptimizer": false,
+              "outputHashing": "none",
+              "baseHref": "/",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.development.ts"
+                }
+              ],
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true,
-              "baseHref": "/",
-              "deployUrl": "",
-              "fileReplacements": [
-                {
-                  "replace": "src/environments/environment.ts",
-                  "with": "src/environments/environment.development.ts"
-                }
-              ]
-            },
-            "single-spa": {
-              "browser": "src/main.single-spa.ts",
-              "outputHashing": "none",
-              "deployUrl": "/diplomas/",
-              "baseHref": "/",
-              "fileReplacements": [
-                {
-                  "replace": "src/environments/environment.ts",
-                  "with": "src/environments/environment.production.ts"
-                }
-              ]
-            },
-            "single-spa-local": {
-              "browser": "src/main.single-spa.ts",
-              "outputHashing": "none",
-              "deployUrl": "http://localhost:4227/",
-              "baseHref": "/",
-              "fileReplacements": [
-                {
-                  "replace": "src/environments/environment.ts",
-                  "with": "src/environments/environment.development.ts"
-                }
-              ]
+              "namedChunks": true
             }
           },
-          "defaultConfiguration": "production"
+          "defaultConfiguration": "local"
         },
         "serve": {
-          "builder": "@angular/build:dev-server",
+          "builder": "@angular-builders/custom-webpack:dev-server",
           "configurations": {
             "production": {
               "buildTarget": "diplomas_mf:build:production"
@@ -112,13 +106,13 @@
             "development": {
               "buildTarget": "diplomas_mf:build:development"
             },
-            "single-spa-local": {
-              "buildTarget": "diplomas_mf:build:single-spa-local"
+            "local": {
+              "buildTarget": "diplomas_mf:build:local"
             }
           },
-          "defaultConfiguration": "development",
+          "defaultConfiguration": "local",
           "options": {
-            "servePath": "/",
+            "port": 4227,
             "proxyConfig": "proxy.conf.json"
           }
         }
