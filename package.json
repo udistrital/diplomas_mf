@@ -6,6 +6,8 @@
   "scripts": {
     "start": "ng serve --configuration local --port 4227 --host 0.0.0.0",
     "build": "ng build",
+    "build:test": "ng build --configuration development",
+    "build:prod": "ng build --configuration production",
     "build:single-spa": "ng build --configuration production",
     "test": "vitest run",
     "test:watch": "vitest",
