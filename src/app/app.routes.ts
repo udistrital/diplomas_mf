@@ -3,6 +3,7 @@ import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
+ { path: 'aprobados', canActivate: [authGuard], loadComponent: () => import('./features/aprobados/aprobados').then(m => m.AprobadosComponent) },
   {
     path: '',
     pathMatch: 'full',

@@ -2,7 +2,7 @@ import { ɵresolveComponentResources as resolveComponentResources } from '@angul
 import { TestBed } from '@angular/core/testing';
 import { DomSanitizer } from '@angular/platform-browser';
 import { Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of, throwError, Subject } from 'rxjs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import Swal from 'sweetalert2';
@@ -27,6 +27,7 @@ const resultado = {
 };
 
 class DiplomasApiServiceMock {
+  getDiplomaPreview = vi.fn(() => of({preview:true,documento_id:40,tipo_documento:'diploma',metadatos:{},file:btoa('%PDF-1.4\n')}));
   firmarCeremoniaRector = vi.fn(() => of(resultado));
   getFirmasCeremoniaRector = vi.fn(() => of({
     ceremonia,
@@ -87,8 +88,38 @@ describe('FirmaSecretarioComponent en modo rector', () => {
   });
 
   afterEach(() => {
+    component.cerrarPreview();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     localStorage.clear();
+  });
+
+  it('muestra PDF mediante blob y libera URL al cerrar', async () => {
+    const create = vi.fn((_blob: Blob) => 'blob:http://localhost/diploma');
+    const revoke = vi.fn();
+    vi.stubGlobal('URL', class extends URL {
+      static createObjectURL = create;
+      static revokeObjectURL = revoke;
+    });
+    await component.abrirPreview({documento_digital_id:40} as never);
+    const blob = create.mock.calls[0]?.[0] as Blob;
+    expect(blob.type).toBe('application/pdf');
+    expect(blob.size).toBe('%PDF-1.4\n'.length);
+    expect(component.previewUrl()).toBe('blob:http://localhost/diploma');
+    component.cerrarPreview();
+    expect(revoke).toHaveBeenCalledWith('blob:http://localhost/diploma');
+    expect(component.previewUrl()).toBeNull();
+  });
+
+  it('ignora la respuesta si el modal se cerró durante la carga', async () => {
+    const respuesta = new Subject<ReturnType<typeof api.getDiplomaPreview> extends import('rxjs').Observable<infer T> ? T : never>();
+    api.getDiplomaPreview.mockReturnValueOnce(respuesta);
+    const pendiente = component.abrirPreview({documento_digital_id:40} as never);
+    component.cerrarPreview();
+    respuesta.next({preview:true,documento_id:40,tipo_documento:'diploma',metadatos:{},file:btoa('%PDF-1.4')});
+    await pendiente;
+    expect(component.previewUrl()).toBeNull();
+    expect(component.previewAbierto()).toBe(false);
   });
 
   it('cierra el estado de procesamiento antes de mostrar el resultado y actualiza el tablero', async () => {
@@ -125,4 +156,27 @@ describe('FirmaSecretarioComponent en modo rector', () => {
     expect(component.error()).toBe(`HTTP ${status}`);
     expect(fire).toHaveBeenCalledTimes(2);
   });
+  it('quita capa de carga antes de mostrar aviso de rúbrica ausente y continúa al tablero', async () => {
+    api.getFirmanteActivo.mockReturnValueOnce(of({rol:'rector',orden:4,cargo_id:100,cargo:'RECTOR',nombre:'Rector Prueba',documento_identidad:123,enlace_firma:''}));
+    let procesandoAlMostrar: boolean | undefined;
+    const fire=vi.spyOn(Swal,'fire').mockImplementationOnce(async () => {
+      procesandoAlMostrar=component.procesando();
+      return {isConfirmed:true} as never;
+    });
+    await component.cargarCeremonias();
+    expect(fire).toHaveBeenCalledOnce();
+    expect(procesandoAlMostrar).toBe(false);
+    expect(api.getTableroCeremoniasRector).toHaveBeenCalledOnce();
+    expect(component.procesando()).toBe(false);
+  });
+
+  it('continúa al tablero con rúbrica guardada sin mostrar aviso', async () => {
+    const fire=vi.spyOn(Swal,'fire').mockResolvedValue({isConfirmed:true} as never);
+    await component.cargarCeremonias();
+    expect(component.firmanteTieneRubrica()).toBe(true);
+    expect(api.getTableroCeremoniasRector).toHaveBeenCalledOnce();
+    expect(fire).not.toHaveBeenCalled();
+    expect(component.procesando()).toBe(false);
+  });
+
 });

@@ -1,5 +1,7 @@
+import { PeriodoSelectorComponent } from '../../core/periodo-selector';
+import { PeriodoAcademicoService } from '../../core/services/periodo-academico.service';
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, OnInit, OnDestroy, computed, inject, signal } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { finalize, firstValueFrom } from 'rxjs';
@@ -43,13 +45,25 @@ interface UsuarioAutenticadoStorage {
 
 @Component({
   selector: 'diplomas-mf-firma-secretario',
-  imports: [CommonModule, FormsModule, MatButtonModule, MatCardModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressSpinnerModule, MatSelectModule, MatSnackBarModule],
+  imports: [PeriodoSelectorComponent, CommonModule, FormsModule, MatButtonModule, MatCardModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressSpinnerModule, MatSelectModule, MatSnackBarModule],
   templateUrl: './firma-secretario.html',
   styleUrl: './firma-secretario.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class FirmaSecretarioComponent implements OnInit {
+export class FirmaSecretarioComponent implements OnInit, OnDestroy {
   private readonly api = inject(DiplomasApiService);
+  readonly periodo = inject(PeriodoAcademicoService);
+  private readonly periodoEffect = effect(() => {
+    const seleccionado = this.periodo.seleccionado();
+    if (this.modoConfig().rol !== 'secretario_academico') return;
+    this.tablero.set(null);
+    this.detalle.set(null);
+    this.ceremoniaSeleccionada.set(null);
+    this.seleccionados.set(new Set());
+    this.estado.set('idle');
+    this.error.set(null);
+    if (seleccionado) void this.cargarCeremonias();
+  });
   private readonly sanitizer = inject(DomSanitizer);
   private readonly router = inject(Router);
 
@@ -158,10 +172,12 @@ export class FirmaSecretarioComponent implements OnInit {
   }
 
   async ngOnInit(): Promise<void> {
-    await this.cargarCeremonias();
+    if (this.modoConfig().rol !== 'secretario_academico') await this.cargarCeremonias();
   }
 
   async cargarCeremonias(): Promise<void> {
+    const periodo = this.periodo.seleccionado();
+    if (!periodo && this.modoConfig().rol === 'secretario_academico') return;
     const documento = this.documentoSecretario();
     if (!documento) {
       this.error.set('No fue posible identificar el documento del usuario autenticado.');
@@ -173,6 +189,7 @@ export class FirmaSecretarioComponent implements OnInit {
     this.error.set(null);
     try {
       const firmante = await firstValueFrom(this.api.getFirmanteActivo(documento));
+      if (this.modoConfig().rol === 'secretario_academico' && periodo !== this.periodo.seleccionado()) return;
       this.firmante.set(firmante);
       const config = this.modoConfig();
       if (firmante.rol !== config.rol || firmante.orden !== config.orden) {
@@ -187,10 +204,14 @@ export class FirmaSecretarioComponent implements OnInit {
       if (!this.firmanteTieneRubrica()) {
         const mensaje = 'Debe cargar una rúbrica activa antes de firmar diplomas.';
         this.error.set(mensaje);
+        this.estado.set('idle');
         await this.mostrarAdvertencia(mensaje);
+        if (this.modoConfig().rol === 'secretario_academico' && periodo !== this.periodo.seleccionado()) return;
+        this.estado.set('cargando');
       }
 
       const tablero = await firstValueFrom(this.obtenerTablero(documento));
+      if (this.modoConfig().rol === 'secretario_academico' && periodo !== this.periodo.seleccionado()) return;
       this.tablero.set(tablero);
       this.estado.set('idle');
 
@@ -208,6 +229,7 @@ export class FirmaSecretarioComponent implements OnInit {
         await this.seleccionarCeremonia(primera);
       }
     } catch (error) {
+      if (this.modoConfig().rol === 'secretario_academico' && periodo !== this.periodo.seleccionado()) return;
       const mensaje = this.mensajeError(error, 'No fue posible cargar las ceremonias.');
       this.error.set(mensaje);
       this.estado.set('error');
@@ -216,6 +238,7 @@ export class FirmaSecretarioComponent implements OnInit {
   }
 
   async seleccionarCeremonia(ceremonia: CeremoniaResumen): Promise<void> {
+    const periodo = this.periodo.seleccionado();
     const documento = this.documentoSecretario();
     if (!documento) {
       return;
@@ -227,10 +250,12 @@ export class FirmaSecretarioComponent implements OnInit {
     this.error.set(null);
     try {
       const detalle = await firstValueFrom(this.obtenerFirmasCeremonia(ceremonia.id, documento));
+      if (this.modoConfig().rol === 'secretario_academico' && periodo !== this.periodo.seleccionado()) return;
       this.detalle.set(detalle);
       this.estado.set('idle');
       this.seleccionarTodosPendientes();
     } catch (error) {
+      if (this.modoConfig().rol === 'secretario_academico' && periodo !== this.periodo.seleccionado()) return;
       const mensaje = this.mensajeError(error, 'No fue posible cargar estudiantes de la ceremonia.');
       this.error.set(mensaje);
       this.estado.set('error');
@@ -263,17 +288,42 @@ export class FirmaSecretarioComponent implements OnInit {
     this.seleccionados.set(new Set(this.pendientesFiltrados().map((estudiante) => estudiante.documento_digital_id)));
   }
 
+  private previewObjectUrl: string | null = null;
+  private previewSolicitud = 0;
+
+  ngOnDestroy(): void {
+    this.cerrarPreview();
+  }
+
+  private liberarPreviewUrl(): void {
+    this.previewUrl.set(null);
+    if (this.previewObjectUrl) {
+      URL.revokeObjectURL(this.previewObjectUrl);
+      this.previewObjectUrl = null;
+    }
+  }
+
   async abrirPreview(estudiante: CeremoniaFirmaEstudianteResumen): Promise<void> {
+    const solicitud = ++this.previewSolicitud;
     this.estado.set('preview');
     this.preview.set(null);
-    this.previewUrl.set(null);
+    this.liberarPreviewUrl();
     this.previewAbierto.set(true);
     try {
-      const preview = await firstValueFrom(this.api.getDiplomaPreview(estudiante.documento_digital_id));
+      const documento = this.documentoSecretario();
+      if (!documento) throw new Error('No fue posible identificar al firmante.');
+      const preview = await firstValueFrom(this.modoConfig().rol === 'secretario_academico'
+        ? this.api.prepararDiplomaPreview(estudiante.documento_digital_id, documento)
+        : this.api.getDiplomaPreview(estudiante.documento_digital_id));
+      if (solicitud !== this.previewSolicitud) return;
+      const bytes = Uint8Array.from(atob(preview.file), caracter => caracter.charCodeAt(0));
+      this.previewObjectUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
       this.preview.set(preview);
-      this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(`data:application/pdf;base64,${preview.file}`));
+      this.previewUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(this.previewObjectUrl));
       this.estado.set('idle');
     } catch (error) {
+      if (solicitud !== this.previewSolicitud) return;
+      this.liberarPreviewUrl();
       this.previewAbierto.set(false);
       const mensaje = this.mensajeError(error, 'No fue posible generar el preview del diploma.');
       this.error.set(mensaje);
@@ -283,9 +333,10 @@ export class FirmaSecretarioComponent implements OnInit {
   }
 
   cerrarPreview(): void {
+    ++this.previewSolicitud;
     this.previewAbierto.set(false);
     this.preview.set(null);
-    this.previewUrl.set(null);
+    this.liberarPreviewUrl();
   }
 
   async firmarSeleccionados(): Promise<void> {
