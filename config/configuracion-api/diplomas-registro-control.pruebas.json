@@ -1,0 +1,30 @@
+{
+  "environment": "pruebas",
+  "application": "SGA_MF",
+  "profiles": ["ADMISIONES_REG"],
+  "requiredExistingAssignments": [
+    {
+      "option": "Diplomas",
+      "profiles": ["ADMISIONES_REG"]
+    }
+  ],
+  "options": [
+    {
+      "name": "Registro y control de diplomas",
+      "description": "Consulta y descarga institucional de diplomas definitivos",
+      "type": "Menú",
+      "url": "/diplomas/registro-control",
+      "layout": "",
+      "parent": "Diplomas",
+      "profiles": ["ADMISIONES_REG"]
+    },
+    {
+      "name": "diplomas_descargar_zip_originales",
+      "description": "Descargar en ZIP los PDF originales de S3 organizados por facultad y ceremonia",
+      "type": "Acción",
+      "url": "",
+      "layout": "",
+      "profiles": ["ADMISIONES_REG"]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+.registro-control { padding: 24px; max-width: 980px; margin: 0 auto; }
+header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+header > mat-icon { color: #03678f; width: 40px; height: 40px; font-size: 40px; }
+h1 { margin: 0; color: #17324d; }
+header p { margin: 4px 0 0; color: #52697d; }
+mat-card-content { padding-top: 18px; }
+.filtros { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 16px; margin: 20px 0 4px; }
+button mat-progress-spinner { display: inline-block; margin-right: 8px; }
+.mensaje { margin-top: 16px; color: #17324d; font-weight: 600; }
+.cargando { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: #52697d; }
+@media (max-width: 640px) { .filtros { grid-template-columns: 1fr; } }

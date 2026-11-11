@@ -1,8 +1,9 @@
+import { PeriodoAcademicoService, PeriodoAcademico } from './periodo-academico.service';
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable, InjectionToken } from '@angular/core';
 import { catchError, Observable, throwError } from 'rxjs';
 
-import { ActualizarCeremoniaRequest, AsignarEstudiantesCeremoniaRequest, AsignarEstudiantesCeremoniaResult, CrearCeremoniaRequest, CrearCeremoniaResult, EstudiantesProgramaCeremoniaResult, QuitarProgramaCeremoniaRequest, TableroCeremoniasResult } from '../models/ceremonia.model';
+import { ActualizarCeremoniaRequest, AnularFirmaDiplomaRequest, AnularFirmaDiplomaResult, AsignarEstudiantesCeremoniaRequest, AsignarEstudiantesCeremoniaResult, CrearCeremoniaRequest, CrearCeremoniaResult, CeremoniaFirmasResult, DiplomaPreviewResult, EstudiantesProgramaCeremoniaResult, FirmaMasivaCeremoniaRequest, FirmaMasivaCeremoniaResult, GuardarParametrizacionRegistroRequest, ParametrizacionRegistro, QuitarProgramaCeremoniaRequest, RegistroControlCatalogo, TableroCeremoniasResult } from '../models/ceremonia.model';
 import { FirmanteActivo, SubirFirmaFirmanteRequest, SubirFirmaFirmanteResult } from '../models/firmante.model';
 
 export const DIPLOMAS_SERVICE_BASE_URL = new InjectionToken<string>('DIPLOMAS_SERVICE_BASE_URL');
@@ -10,6 +11,17 @@ export const DIPLOMAS_SERVICE_BASE_URL = new InjectionToken<string>('DIPLOMAS_SE
 @Injectable({ providedIn: 'root' })
 export class DiplomasApiService {
   private readonly http = inject(HttpClient);
+  private readonly periodo = inject(PeriodoAcademicoService);
+  getPeriodosAcademicos(): Observable<PeriodoAcademico[]> {
+    return this.http.get<PeriodoAcademico[]>(`${this.baseUrl}/diplomas/periodos-academicos`, { headers: this.authHeaders() });
+  }
+  getEstudiantesAprobados(): Observable<unknown> {
+    const params = new HttpParams().set('periodo_id', this.periodo.exigirId());
+    return this.http.get(`${this.baseUrl}/diplomas/estudiantes-aprobados`, { params, headers: this.authHeaders() });
+  }
+  crearDocumentosAprobados(payload: Record<string, unknown>): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/diplomas/estudiantes-aprobados/documentos`, { ...payload, periodo_id: this.periodo.exigirId() }, { headers: this.authHeaders() });
+  }
   private readonly baseUrl = inject(DIPLOMAS_SERVICE_BASE_URL).replace(/\/$/, '');
 
   getFirmanteActivo(documento: number): Observable<FirmanteActivo> {
@@ -26,9 +38,45 @@ export class DiplomasApiService {
   }
 
   getTableroCeremonias(documento: number): Observable<TableroCeremoniasResult> {
-    const params = new HttpParams().set('documento_identidad_secretario', String(documento));
+    let params = new HttpParams().set('documento_identidad_secretario', String(documento));
+    const periodo = this.periodo.seleccionado();
+    if (periodo) params = params.set('periodo_id', periodo.Id);
     return this.http
       .get<TableroCeremoniasResult>(`${this.baseUrl}/ceremonias`, { params, headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
+  }
+
+  getParametrizacionRegistro(documento: number, vigencia: number): Observable<ParametrizacionRegistro> {
+    const params = new HttpParams().set('documento_identidad_secretario', String(documento)).set('vigencia', String(vigencia));
+    return this.http
+      .get<ParametrizacionRegistro>(`${this.baseUrl}/ceremonias/parametrizacion-registro`, { params, headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
+  }
+
+  guardarParametrizacionRegistro(payload: GuardarParametrizacionRegistroRequest): Observable<ParametrizacionRegistro> {
+    return this.http
+      .post<ParametrizacionRegistro>(`${this.baseUrl}/ceremonias/parametrizacion-registro`, payload, { headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
+  }
+
+  getTableroCeremoniasDecano(documento: number): Observable<TableroCeremoniasResult> {
+    const params = new HttpParams().set('documento_identidad_decano', String(documento));
+    return this.http
+      .get<TableroCeremoniasResult>(`${this.baseUrl}/ceremonias/decano`, { params, headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
+  }
+
+  getTableroCeremoniasSecretariaGeneral(documento: number): Observable<TableroCeremoniasResult> {
+    const params = new HttpParams().set('documento_identidad_firmante', String(documento));
+    return this.http
+      .get<TableroCeremoniasResult>(`${this.baseUrl}/ceremonias/secretaria-general`, { params, headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
+  }
+
+  getTableroCeremoniasRector(documento: number): Observable<TableroCeremoniasResult> {
+    const params = new HttpParams().set('documento_identidad_firmante', String(documento));
+    return this.http
+      .get<TableroCeremoniasResult>(`${this.baseUrl}/ceremonias/rector`, { params, headers: this.authHeaders() })
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
   }
 
@@ -47,7 +95,7 @@ export class DiplomasApiService {
 
   asignarEstudiantesCeremonia(id: number, payload: AsignarEstudiantesCeremoniaRequest): Observable<AsignarEstudiantesCeremoniaResult> {
     return this.http
-      .post<AsignarEstudiantesCeremoniaResult>(`${this.baseUrl}/ceremonias/${id}/asignar`, payload, { headers: this.authHeaders() })
+      .post<AsignarEstudiantesCeremoniaResult>(`${this.baseUrl}/ceremonias/${id}/asignar`, { ...payload, periodo_id: this.periodo.exigirId() }, { headers: this.authHeaders() })
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
   }
 
@@ -58,10 +106,102 @@ export class DiplomasApiService {
   }
 
   getEstudiantesProgramaCeremonia(programaId: number, documento: number): Observable<EstudiantesProgramaCeremoniaResult> {
-    const params = new HttpParams().set('documento_identidad_secretario', String(documento));
+    const params = new HttpParams().set('documento_identidad_secretario', String(documento)).set('periodo_id', this.periodo.exigirId());
     return this.http
       .get<EstudiantesProgramaCeremoniaResult>(`${this.baseUrl}/ceremonias/programas/${programaId}/estudiantes`, { params, headers: this.authHeaders() })
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
+  }
+
+  getFirmasCeremonia(id: number, documento: number): Observable<CeremoniaFirmasResult> {
+    const params = new HttpParams().set('documento_identidad_secretario', String(documento));
+    return this.http
+      .get<CeremoniaFirmasResult>(`${this.baseUrl}/ceremonias/${id}/firmas`, { params, headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
+  }
+
+  firmarCeremonia(id: number, payload: FirmaMasivaCeremoniaRequest): Observable<FirmaMasivaCeremoniaResult> {
+    return this.http
+      .post<FirmaMasivaCeremoniaResult>(`${this.baseUrl}/ceremonias/${id}/firmas`, payload, { headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'firma'))));
+  }
+
+  getFirmasCeremoniaDecano(id: number, documento: number): Observable<CeremoniaFirmasResult> {
+    const params = new HttpParams().set('documento_identidad_decano', String(documento));
+    return this.http
+      .get<CeremoniaFirmasResult>(`${this.baseUrl}/ceremonias/${id}/firmas-decano`, { params, headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
+  }
+
+  firmarCeremoniaDecano(id: number, payload: FirmaMasivaCeremoniaRequest): Observable<FirmaMasivaCeremoniaResult> {
+    return this.http
+      .post<FirmaMasivaCeremoniaResult>(`${this.baseUrl}/ceremonias/${id}/firmas-decano`, payload, { headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'firma'))));
+  }
+
+  getFirmasCeremoniaSecretariaGeneral(id: number, documento: number): Observable<CeremoniaFirmasResult> {
+    const params = new HttpParams().set('documento_identidad_firmante', String(documento));
+    return this.http
+      .get<CeremoniaFirmasResult>(`${this.baseUrl}/ceremonias/${id}/firmas-secretaria-general`, { params, headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
+  }
+
+  firmarCeremoniaSecretariaGeneral(id: number, payload: FirmaMasivaCeremoniaRequest): Observable<FirmaMasivaCeremoniaResult> {
+    return this.http
+      .post<FirmaMasivaCeremoniaResult>(`${this.baseUrl}/ceremonias/${id}/firmas-secretaria-general`, payload, { headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'firma'))));
+  }
+
+  getFirmasCeremoniaRector(id: number, documento: number): Observable<CeremoniaFirmasResult> {
+    const params = new HttpParams().set('documento_identidad_firmante', String(documento));
+    return this.http
+      .get<CeremoniaFirmasResult>(`${this.baseUrl}/ceremonias/${id}/firmas-rector`, { params, headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
+  }
+
+  firmarCeremoniaRector(id: number, payload: FirmaMasivaCeremoniaRequest): Observable<FirmaMasivaCeremoniaResult> {
+    return this.http
+      .post<FirmaMasivaCeremoniaResult>(`${this.baseUrl}/ceremonias/${id}/firmas-rector`, payload, { headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'firma'))));
+  }
+
+  prepararDiplomaPreview(documentoDigitalId: number, documentoSecretario: number): Observable<DiplomaPreviewResult> {
+    return this.http
+      .post<DiplomaPreviewResult>(`${this.baseUrl}/documento_digital/${documentoDigitalId}/diploma/preview`,
+        { documento_identidad_secretario: documentoSecretario }, { headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
+  }
+
+  getDiplomaPreview(documentoDigitalId: number): Observable<DiplomaPreviewResult> {
+    return this.http
+      .get<DiplomaPreviewResult>(`${this.baseUrl}/documento_digital/${documentoDigitalId}/diploma/preview`, { headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
+  }
+
+  descargarDiplomasRegistroControl(facultadId?: number, ceremoniaId?: number): Observable<Blob> {
+    let params = new HttpParams();
+    if (facultadId) {
+      params = params.set('facultad_id', String(facultadId));
+    }
+    if (ceremoniaId) {
+      params = params.set('ceremonia_id', String(ceremoniaId));
+    }
+    return this.http.get(`${this.baseUrl}/diplomas/registro-control/archivo`, {
+      params,
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
+  getOpcionesRegistroControl(): Observable<RegistroControlCatalogo> {
+    return this.http.get<RegistroControlCatalogo>(`${this.baseUrl}/diplomas/registro-control/opciones`, {
+      headers: this.authHeaders()
+    });
+  }
+
+  anularFirmaDocumento(documentoDigitalId: number, payload: AnularFirmaDiplomaRequest): Observable<AnularFirmaDiplomaResult> {
+    return this.http
+      .delete<AnularFirmaDiplomaResult>(`${this.baseUrl}/documento_digital/${documentoDigitalId}/firma`, { body: payload, headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'firma'))));
   }
 
   crearCeremonia(payload: CrearCeremoniaRequest): Observable<CrearCeremoniaResult> {
@@ -79,6 +219,10 @@ export class DiplomasApiService {
     if (error.status === 0) {
       return new Error('No fue posible conectar con diplomas_service. Verifique la red e intente nuevamente.');
     }
+    const detalle = this.extraerDetalleError(error);
+    if (detalle) {
+      return new Error(detalle);
+    }
     if (contexto === 'firmante' && (error.status === 404 || error.status === 422 || error.status === 500)) {
       return new Error('No se encontró un firmante activo para el documento ingresado.');
     }
@@ -92,5 +236,30 @@ export class DiplomasApiService {
       return new Error('No fue posible registrar la ceremonia. Revise los datos e intente nuevamente.');
     }
     return new Error('No fue posible procesar la solicitud. Intente nuevamente.');
+  }
+
+  private extraerDetalleError(error: HttpErrorResponse): string | null {
+    if (!error.error) {
+      return null;
+    }
+    if (typeof error.error === 'string') {
+      if (error.error.trim().startsWith('<')) return null;
+      return error.error;
+    }
+    const body = error.error as Record<string, unknown>;
+    const mensaje = body['message'] || body['Message'] || body['error'] || body['Error'] || body['Status'];
+    if (typeof mensaje === 'string' && mensaje.trim()) {
+      return mensaje;
+    }
+    const resultados = body['resultados'];
+    if (Array.isArray(resultados)) {
+      const errores = resultados
+        .map((item) => (item && typeof item === 'object' ? (item as Record<string, unknown>)['error'] : null))
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+      if (errores.length > 0) {
+        return [...new Set(errores)].join(' ');
+      }
+    }
+    return null;
   }
 }

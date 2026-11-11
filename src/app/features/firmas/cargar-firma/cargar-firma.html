@@ -69,25 +69,6 @@
           </div>
         </section>
       }
-
-      @if (enlaceFirmaActual(); as enlaceFirma) {
-        <section class="firma-registrada" aria-label="Firma registrada">
-          <div class="firma-registrada__title">
-            <mat-icon aria-hidden="true">task_alt</mat-icon>
-            <div>
-              <span>Firma registrada</span>
-              <strong>{{ enlaceFirma }}</strong>
-            </div>
-          </div>
-          @if (firmaImagenActual(); as firmaImagen) {
-            <div class="firma-registrada__preview">
-              <img [src]="firmaImagen" alt="Firma registrada del firmante" />
-            </div>
-          } @else {
-            <p>No fue posible previsualizar la imagen registrada.</p>
-          }
-        </section>
-      }
     </mat-card-content>
   </mat-card>
 
@@ -98,46 +79,72 @@
     </mat-card-header>
 
     <mat-card-content>
-      <section class="upload-zone" [class.upload-zone--disabled]="!puedeSeleccionarArchivo()" aria-labelledby="upload-title">
-        <mat-icon class="upload-zone__icon" aria-hidden="true">upload_file</mat-icon>
-        <div class="upload-zone__copy">
-          <h3 id="upload-title">Seleccione una imagen PNG de la firma</h3>
-          <p>El archivo se previsualiza antes de enviarse.</p>
-        </div>
-        <input
-          #firmaInput
-          id="firma-file"
-          class="file-input"
-          type="file"
-          accept="image/png"
-          [disabled]="!puedeSeleccionarArchivo()"
-          (change)="onArchivoInput($event)"
-        />
-        <button mat-stroked-button color="primary" type="button" [disabled]="!puedeSeleccionarArchivo()" (click)="firmaInput.click()">
-          <mat-icon aria-hidden="true">image</mat-icon>
-          <span>Seleccionar archivo</span>
-        </button>
-      </section>
+      <input
+        #firmaInput
+        id="firma-file"
+        class="file-input"
+        type="file"
+        accept="image/png"
+        [disabled]="!puedeSeleccionarArchivo()"
+        (change)="onArchivoInput($event)"
+      />
+      @if (tieneFirmaRegistrada() && !mostrandoPreviewNuevo()) {
+        <section class="firma-actual" aria-label="Firma actual registrada">
+          <div class="firma-actual__header">
+            <mat-icon aria-hidden="true">task_alt</mat-icon>
+            <div>
+              <span>Firma actual</span>
+              <strong>{{ enlaceFirmaActual() }}</strong>
+            </div>
+          </div>
+          @if (firmaImagenActual(); as firmaImagen) {
+            <div class="firma-actual__preview">
+              <img [src]="firmaImagen" alt="Firma actual del firmante" />
+            </div>
+          } @else {
+            <p>No fue posible previsualizar la imagen registrada.</p>
+          }
+          <p class="firma-actual__hint">¿Desea reemplazarla?</p>
+          <button mat-stroked-button color="primary" type="button" (click)="abrirSelectorArchivo()" [disabled]="!puedeSeleccionarArchivo()">
+            <mat-icon aria-hidden="true">image</mat-icon>
+            <span>Seleccionar nueva imagen</span>
+          </button>
+        </section>
+      } @else if (!tieneFirmaRegistrada() && !mostrandoPreviewNuevo()) {
+        <section class="upload-zone" [class.upload-zone--disabled]="!puedeSeleccionarArchivo()" aria-labelledby="upload-title">
+          <mat-icon class="upload-zone__icon" aria-hidden="true">upload_file</mat-icon>
+          <div class="upload-zone__copy">
+            <h3 id="upload-title">Seleccione una imagen PNG de la firma</h3>
+            <p>El archivo se previsualiza antes de enviarse.</p>
+          </div>
+          <button mat-stroked-button color="primary" type="button" [disabled]="!puedeSeleccionarArchivo()" (click)="firmaInput.click()">
+            <mat-icon aria-hidden="true">image</mat-icon>
+            <span>Seleccionar archivo</span>
+          </button>
+        </section>
+      }
+
+      @if (mostrandoPreviewNuevo()) {
+        <section class="preview preview--nuevo" aria-label="Previsualización de nueva firma">
+          @if (previewUrl()) {
+            <img [src]="previewUrl()" alt="Previsualización de la nueva firma seleccionada" />
+          }
+          <div class="preview__detail">
+            <span>Nueva firma seleccionada</span>
+            <strong>{{ archivo()?.name }}</strong>
+            <p>{{ formatoTamano(archivo()!.size) }}</p>
+          </div>
+          <div class="preview__actions">
+            <button mat-button color="primary" type="button" (click)="limpiarArchivo()">
+              <mat-icon aria-hidden="true">refresh</mat-icon>
+              <span>Reemplazar</span>
+            </button>
+          </div>
+        </section>
+      }
 
       @if (archivoError()) {
         <p class="message message--error" role="alert">{{ archivoError() }}</p>
-      }
-
-      @if (archivo(); as archivoSeleccionado) {
-        <section class="preview" aria-label="Previsualización de firma">
-          @if (previewUrl()) {
-            <img [src]="previewUrl()" alt="Previsualización de la firma seleccionada" />
-          }
-          <div class="preview__detail">
-            <span>Archivo seleccionado</span>
-            <strong>{{ archivoSeleccionado.name }}</strong>
-            <p>{{ formatoTamano(archivoSeleccionado.size) }}</p>
-          </div>
-          <button mat-button color="primary" type="button" (click)="limpiarArchivo()">
-            <mat-icon aria-hidden="true">refresh</mat-icon>
-            <span>Reemplazar</span>
-          </button>
-        </section>
       }
 
       <div class="actions">
@@ -154,7 +161,7 @@
           } @else {
             <mat-icon aria-hidden="true">cloud_upload</mat-icon>
           }
-          <span>Cargar firma</span>
+          <span>{{ tieneFirmaRegistrada() ? 'Actualizar firma' : 'Cargar firma' }}</span>
         </button>
       </div>
 
