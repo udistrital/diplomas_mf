@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, ElementRef, inject, signal, ViewChild } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
@@ -8,6 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { FirmanteActivo, SubirFirmaFirmanteResult } from '../../../core/models/firmante.model';
 import { DiplomasApiService } from '../../../core/services/diplomas-api.service';
@@ -34,6 +35,12 @@ interface UsuarioAutenticadoStorage {
   };
 }
 
+interface FirmaGuardada {
+  enlaceFirma: string;
+  firmaImagen: string | null;
+  firmaFirmante: FirmanteActivo['firma_firmante'] | null;
+}
+
 @Component({
   selector: 'diplomas-mf-cargar-firma',
   imports: [
@@ -44,7 +51,8 @@ interface UsuarioAutenticadoStorage {
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    MatSnackBarModule
   ],
   templateUrl: './cargar-firma.html',
   styleUrl: './cargar-firma.scss',
@@ -52,7 +60,14 @@ interface UsuarioAutenticadoStorage {
 })
 export class CargarFirmaComponent {
   private readonly api = inject(DiplomasApiService);
+  private readonly snackBar = inject(MatSnackBar);
   private readonly destroyRef = inject(DestroyRef);
+
+  @ViewChild('firmaInput') firmaInput!: ElementRef<HTMLInputElement>;
+
+  abrirSelectorArchivo(): void {
+    this.firmaInput?.nativeElement?.click();
+  }
 
   readonly validarFirmanteForm = new FormGroup({
     documento: new FormControl<number | null>(null, {
@@ -72,19 +87,32 @@ export class CargarFirmaComponent {
   readonly resultado = signal<SubirFirmaFirmanteResult | null>(null);
   readonly error = signal<string | null>(null);
 
+  readonly firmaGuardada = signal<FirmaGuardada | null>(null);
+  readonly firmaAnterior = signal<FirmaGuardada | null>(null);
+
   readonly puedeSeleccionarArchivo = computed(() => this.firmante() !== null && !this.loadingFirmante());
   readonly puedeSubir = computed(() => this.firmante() !== null && this.archivo() !== null && !this.subiendoFirma());
-  readonly enlaceFirmaActual = computed(() =>
-    this.resultado()?.enlace_firma
-    ?? this.firmante()?.firma_firmante?.enlace_firma
-    ?? this.firmante()?.enlace_firma
-    ?? null
-  );
-  readonly firmaImagenActual = computed(() => this.firmante()?.firma_imagen ?? null);
+  readonly tieneFirmaRegistrada = computed(() => this.firmaGuardada() !== null && (this.firmaGuardada()?.enlaceFirma ?? '').length > 0);
+  readonly mostrandoPreviewNuevo = computed(() => this.archivo() !== null && this.previewUrl() !== null);
+
+  readonly enlaceFirmaActual = computed(() => this.firmaGuardada()?.enlaceFirma ?? null);
+  readonly firmaImagenActual = computed(() => this.firmaGuardada()?.firmaImagen ?? null);
 
   constructor() {
     this.precargarDocumentoAutenticado();
     this.destroyRef.onDestroy(() => this.liberarPreview());
+  }
+
+  async ngOnInit(): Promise<void> {
+    await this.validarFirmanteAutomatico();
+  }
+
+  async validarFirmanteAutomatico(): Promise<void> {
+    const documento = this.validarFirmanteForm.controls.documento.value;
+    if (!documento || this.validarFirmanteForm.controls.documento.invalid) {
+      return;
+    }
+    await this.validarFirmante();
   }
 
   async validarFirmante(): Promise<void> {
@@ -95,6 +123,7 @@ export class CargarFirmaComponent {
 
     if (!documento || this.validarFirmanteForm.controls.documento.invalid) {
       this.firmante.set(null);
+      this.firmaGuardada.set(null);
       this.firmanteError.set('Ingrese un documento de identidad válido.');
       this.estado.set('firmante no autorizado');
       return;
@@ -105,14 +134,29 @@ export class CargarFirmaComponent {
     try {
       const firmante = await firstValueFrom(this.api.getFirmanteActivo(documento));
       this.firmante.set(firmante);
+      this.guardarFirmaActual(firmante);
       this.estado.set('firmante válido');
     } catch (error) {
       this.firmante.set(null);
+      this.firmaGuardada.set(null);
       this.limpiarArchivo();
       this.firmanteError.set(error instanceof Error ? error.message : 'No se encontró un firmante activo para el documento ingresado.');
       this.estado.set('firmante no autorizado');
     } finally {
       this.loadingFirmante.set(false);
+    }
+  }
+
+  private guardarFirmaActual(firmante: FirmanteActivo): void {
+    const enlace = firmante.firma_firmante?.enlace_firma ?? firmante.enlace_firma ?? '';
+    if (enlace) {
+      this.firmaGuardada.set({
+        enlaceFirma: enlace,
+        firmaImagen: firmante.firma_imagen ?? null,
+        firmaFirmante: firmante.firma_firmante ?? null
+      });
+    } else {
+      this.firmaGuardada.set(null);
     }
   }
 
@@ -148,15 +192,34 @@ export class CargarFirmaComponent {
       return;
     }
 
+    this.guardarFirmaAnterior();
     this.archivo.set(file);
     this.previewUrl.set(URL.createObjectURL(file));
     this.estado.set('archivo seleccionado');
+  }
+
+  private guardarFirmaAnterior(): void {
+    if (this.tieneFirmaRegistrada() && !this.firmaAnterior()) {
+      this.firmaAnterior.set({ ...this.firmaGuardada()! });
+    }
+  }
+
+  private restaurarFirmaAnterior(): void {
+    if (this.firmaAnterior()) {
+      this.firmaGuardada.set({ ...this.firmaAnterior()! });
+      this.firmaAnterior.set(null);
+    }
+  }
+
+  private limpiarFirmaAnterior(): void {
+    this.firmaAnterior.set(null);
   }
 
   limpiarArchivo(): void {
     this.archivo.set(null);
     this.archivoError.set(null);
     this.liberarPreview();
+    this.restaurarFirmaAnterior();
   }
 
   async subirFirma(): Promise<void> {
@@ -183,10 +246,17 @@ export class CargarFirmaComponent {
         file
       }));
       this.resultado.set(result);
+      this.guardarFirmaActual(result.firmante);
+      this.limpiarFirmaAnterior();
+      this.liberarPreview();
+      this.archivo.set(null);
       this.estado.set('exito');
+      this.snackBar.open('Firma actualizada correctamente.', 'Cerrar', { duration: 4000, panelClass: ['snackbar-success'] });
     } catch (error) {
       this.error.set(error instanceof Error ? error.message : 'No fue posible cargar la firma. Intente nuevamente.');
       this.estado.set('error');
+      this.restaurarFirmaAnterior();
+      this.snackBar.open('Error al actualizar la firma. Se conservó la firma anterior.', 'Cerrar', { duration: 5000, panelClass: ['snackbar-error'] });
     } finally {
       this.subiendoFirma.set(false);
     }
