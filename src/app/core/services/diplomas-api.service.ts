@@ -1,3 +1,4 @@
+import { PeriodoAcademicoService, PeriodoAcademico } from './periodo-academico.service';
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable, InjectionToken } from '@angular/core';
 import { catchError, Observable, throwError } from 'rxjs';
@@ -10,6 +11,17 @@ export const DIPLOMAS_SERVICE_BASE_URL = new InjectionToken<string>('DIPLOMAS_SE
 @Injectable({ providedIn: 'root' })
 export class DiplomasApiService {
   private readonly http = inject(HttpClient);
+  private readonly periodo = inject(PeriodoAcademicoService);
+  getPeriodosAcademicos(): Observable<PeriodoAcademico[]> {
+    return this.http.get<PeriodoAcademico[]>(`${this.baseUrl}/diplomas/periodos-academicos`, { headers: this.authHeaders() });
+  }
+  getEstudiantesAprobados(): Observable<unknown> {
+    const params = new HttpParams().set('periodo_id', this.periodo.exigirId());
+    return this.http.get(`${this.baseUrl}/diplomas/estudiantes-aprobados`, { params, headers: this.authHeaders() });
+  }
+  crearDocumentosAprobados(payload: Record<string, unknown>): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/diplomas/estudiantes-aprobados/documentos`, { ...payload, periodo_id: this.periodo.exigirId() }, { headers: this.authHeaders() });
+  }
   private readonly baseUrl = inject(DIPLOMAS_SERVICE_BASE_URL).replace(/\/$/, '');
 
   getFirmanteActivo(documento: number): Observable<FirmanteActivo> {
@@ -26,7 +38,9 @@ export class DiplomasApiService {
   }
 
   getTableroCeremonias(documento: number): Observable<TableroCeremoniasResult> {
-    const params = new HttpParams().set('documento_identidad_secretario', String(documento));
+    let params = new HttpParams().set('documento_identidad_secretario', String(documento));
+    const periodo = this.periodo.seleccionado();
+    if (periodo) params = params.set('periodo_id', periodo.Id);
     return this.http
       .get<TableroCeremoniasResult>(`${this.baseUrl}/ceremonias`, { params, headers: this.authHeaders() })
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
@@ -81,7 +95,7 @@ export class DiplomasApiService {
 
   asignarEstudiantesCeremonia(id: number, payload: AsignarEstudiantesCeremoniaRequest): Observable<AsignarEstudiantesCeremoniaResult> {
     return this.http
-      .post<AsignarEstudiantesCeremoniaResult>(`${this.baseUrl}/ceremonias/${id}/asignar`, payload, { headers: this.authHeaders() })
+      .post<AsignarEstudiantesCeremoniaResult>(`${this.baseUrl}/ceremonias/${id}/asignar`, { ...payload, periodo_id: this.periodo.exigirId() }, { headers: this.authHeaders() })
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
   }
 
@@ -92,7 +106,7 @@ export class DiplomasApiService {
   }
 
   getEstudiantesProgramaCeremonia(programaId: number, documento: number): Observable<EstudiantesProgramaCeremoniaResult> {
-    const params = new HttpParams().set('documento_identidad_secretario', String(documento));
+    const params = new HttpParams().set('documento_identidad_secretario', String(documento)).set('periodo_id', this.periodo.exigirId());
     return this.http
       .get<EstudiantesProgramaCeremoniaResult>(`${this.baseUrl}/ceremonias/programas/${programaId}/estudiantes`, { params, headers: this.authHeaders() })
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
@@ -148,6 +162,13 @@ export class DiplomasApiService {
     return this.http
       .post<FirmaMasivaCeremoniaResult>(`${this.baseUrl}/ceremonias/${id}/firmas-rector`, payload, { headers: this.authHeaders() })
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'firma'))));
+  }
+
+  prepararDiplomaPreview(documentoDigitalId: number, documentoSecretario: number): Observable<DiplomaPreviewResult> {
+    return this.http
+      .post<DiplomaPreviewResult>(`${this.baseUrl}/documento_digital/${documentoDigitalId}/diploma/preview`,
+        { documento_identidad_secretario: documentoSecretario }, { headers: this.authHeaders() })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
   }
 
   getDiplomaPreview(documentoDigitalId: number): Observable<DiplomaPreviewResult> {
@@ -222,6 +243,7 @@ export class DiplomasApiService {
       return null;
     }
     if (typeof error.error === 'string') {
+      if (error.error.trim().startsWith('<')) return null;
       return error.error;
     }
     const body = error.error as Record<string, unknown>;

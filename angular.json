@@ -44,6 +44,7 @@
           },
           "configurations": {
             "production": {
+              "deployUrl": "https://diplomas.portaloas.udistrital.edu.co/",
               "budgets": [
                 {
                   "type": "initial",
@@ -65,6 +66,7 @@
               ]
             },
             "development": {
+              "deployUrl": "https://pruebasdiplomas.portaloas.udistrital.edu.co/",
               "optimization": true,
               "outputHashing": "none",
               "sourceMap": false,
@@ -80,13 +82,14 @@
               ]
             },
             "local": {
+              "deployUrl": "http://localhost:4227/",
               "buildOptimizer": false,
               "outputHashing": "none",
               "baseHref": "/",
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
-                  "with": "src/environments/environment.development.ts"
+                  "with": "src/environments/environment.local.ts"
                 }
               ],
               "optimization": false,

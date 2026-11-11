@@ -1,4 +1,5 @@
 export interface CrearCeremoniaRequest {
+  periodo_id: number;
   fecha_ceremonia: string;
   lugar: string;
   cantidad_estudiantes_programada: number;
@@ -9,6 +10,7 @@ export interface CrearCeremoniaRequest {
 export type ActualizarCeremoniaRequest = CrearCeremoniaRequest;
 
 export interface CeremoniaGradoResponse {
+  periodo_id?: number;
   id: number;
   fecha_ceremonia?: string;
   lugar: string;
@@ -43,6 +45,7 @@ export interface CrearCeremoniaResult {
 }
 
 export interface CeremoniaResumen {
+  periodo_id?: number;
   id: number;
   relacion_id: number;
   facultad_id: number;
@@ -60,6 +63,7 @@ export interface CeremoniaResumen {
 }
 
 export interface ProgramaAprobadoResumen {
+  periodo_id?: number;
   programa_academico_id: number;
   nombre: string;
   cantidad: number;
@@ -141,6 +145,9 @@ export interface DatosDiplomaEstudiante {
 }
 
 export interface EstudianteProgramaCeremonia {
+  periodo_id?: number;
+  codigo_estudiante_texto?: string;
+  programa_academico_mid_id?: number;
   Id?: number;
   CodigoEstudiante: number;
   IdProyectoOikos: number;

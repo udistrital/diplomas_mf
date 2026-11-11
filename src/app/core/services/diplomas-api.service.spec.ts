@@ -1,3 +1,4 @@
+import { environment as localEnvironment } from '../../../environments/environment.local';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
@@ -81,6 +82,7 @@ describe('DiplomasApiService', () => {
 
   it('envia correctamente POST /v1/ceremonias', () => {
     const payload = {
+      periodo_id: 77,
       fecha_ceremonia: '2026-11-20',
       lugar: 'Auditorio Mayor',
       cantidad_estudiantes_programada: 40,
@@ -128,6 +130,14 @@ describe('DiplomasApiService', () => {
     req.flush({ ceremonia_id: 77, total: 2, firmados: 2, omitidos: 0, errores: 0, resultados: [] });
   });
 
+  it('prepara el registro con POST antes del preview del secretario', () => {
+    service.prepararDiplomaPreview(55,123).subscribe();
+    const req = httpMock.expectOne('http://diplomas.local/v1/documento_digital/55/diploma/preview');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({documento_identidad_secretario:123});
+    req.flush({preview:true,documento_id:55,metadatos:{},file:'PDF_BASE64'});
+  });
+
   it('consulta preview de diploma por documento digital', () => {
     service.getDiplomaPreview(55).subscribe((result) => {
       expect(result.documento_id).toBe(55);
@@ -167,4 +177,26 @@ describe('DiplomasApiService', () => {
     });
   });
 
+  it('no muestra HTML del proxy como mensaje al validar firmante', () => {
+    let mensaje = '';
+    service.getFirmanteActivo(123).subscribe({error: error => mensaje = error.message});
+    httpMock.expectOne('http://diplomas.local/v1/firmantes/rol-activo?documento_identidad=123')
+      .flush('<!DOCTYPE html><pre>Cannot GET /v1/firmantes/rol-activo</pre>', {status:404,statusText:'Not Found'});
+    expect(mensaje).not.toContain('<');
+    expect(mensaje).toContain('firmante activo');
+  });
+
+});
+
+
+describe('API local montada por root en otro puerto', () => {
+ it('envía llamadas a proxy 4227 y evita resolver /v1 contra root 4200', () => {
+  TestBed.configureTestingModule({providers:[provideHttpClient(),provideHttpClientTesting(),{provide:DIPLOMAS_SERVICE_BASE_URL,useValue:localEnvironment.DIPLOMAS_SERVICE.BASE_URL}]});
+  const api=TestBed.inject(DiplomasApiService);
+  const http=TestBed.inject(HttpTestingController);
+  api.getFirmanteActivo(123).subscribe();
+  const request=http.expectOne('http://localhost:4227/v1/firmantes/rol-activo?documento_identidad=123');
+  expect(new URL(request.request.url).port).toBe('4227');
+  request.flush({});http.verify();
+ });
 });
