@@ -1,5 +1,5 @@
 import { PeriodoSelectorComponent } from '../../core/periodo-selector';
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { JsonPipe } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { DiplomasApiService } from '../../core/services/diplomas-api.service';
@@ -9,6 +9,7 @@ interface Estudiante { CodigoEstudiante: number; IdProyectoOikos: number; datos_
 interface Aprobados { total: number; errores: number; facultades: { facultad_id: number; estudiantes: Estudiante[] }[]; estudiantes_con_error?: unknown[]; }
 @Component({
  selector: 'diplomas-aprobados', imports: [PeriodoSelectorComponent, JsonPipe],
+ changeDetection: ChangeDetectionStrategy.Eager,
  template: `<main style="padding:24px"><h1>Estudiantes aprobados</h1><diplomas-periodo-selector />
  @if(!periodo.seleccionado()) { <p>Seleccione un período académico para consultar aprobados.</p> }
  @if(periodo.seleccionado(); as p) { <p>Período: {{ p.Nombre }}</p>
