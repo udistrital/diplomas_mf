@@ -1,4 +1,4 @@
-import { environment as localEnvironment } from '../../../environments/environment.local';
+import { environment as localEnvironment } from '../../../environments/environment';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
