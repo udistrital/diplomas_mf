@@ -1,6 +1,6 @@
 import { OverlayContainer } from '@angular/cdk/overlay';
 import { APP_BASE_HREF } from '@angular/common';
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http';
 import { ApplicationConfig, inject, provideEnvironmentInitializer, provideZonelessChangeDetection } from '@angular/core';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter, withEnabledBlockingInitialNavigation } from '@angular/router';
@@ -19,7 +19,7 @@ export const appConfig: ApplicationConfig = {
     { provide: APP_BASE_HREF, useValue: '/diplomas/' },
     { provide: DIPLOMAS_SERVICE_BASE_URL, useValue: environment.DIPLOMAS_SERVICE.BASE_URL },
     provideAnimationsAsync(),
-    provideHttpClient(withInterceptorsFromDi()),
+    provideHttpClient(withXhr(), withInterceptorsFromDi()),
     provideRouter(routes, withEnabledBlockingInitialNavigation()),
     provideTranslateService({ lang: 'es', fallbackLang: 'es' })
   ]

@@ -24,7 +24,7 @@ steps:
     - push
 
 - name: run_tests
-  image: node:20.19-alpine
+  image: node:26-alpine
   commands:
   - node --version
   - npm ci
@@ -41,7 +41,7 @@ steps:
     - push
 
 - name: nodejs_develop
-  image: node:20.19-alpine
+  image: node:26-alpine
   depends_on:
   - run_tests
   commands:
@@ -57,7 +57,7 @@ steps:
     - push
 
 - name: nodejs_release
-  image: node:20.19-alpine
+  image: node:26-alpine
   depends_on:
   - run_tests
   commands:
@@ -71,7 +71,7 @@ steps:
     - push
 
 - name: nodejs_master
-  image: node:20.19-alpine
+  image: node:26-alpine
   depends_on:
   - run_tests
   commands:
