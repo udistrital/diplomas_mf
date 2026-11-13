@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
@@ -31,6 +31,7 @@ import { PeriodoAcademicoService } from './services/periodo-academico.service';
       @if (!cargando() && !error() && !periodosActivos().length) { <span>No hay períodos académicos activos.</span> }
     </section>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     :host { display: block; margin-bottom: 24px; }
     .periodo-panel { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 20px; border: 1px solid #d0e0eb; border-radius: 12px; background: #fff; }
