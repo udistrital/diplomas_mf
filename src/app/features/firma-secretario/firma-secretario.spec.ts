@@ -27,6 +27,7 @@ const resultado = {
 };
 
 class DiplomasApiServiceMock {
+  anularFirmaDocumento = vi.fn(() => of({documento_id:40,orden:1,anuladas:1}));
   getDiplomaPreview = vi.fn(() => of({preview:true,documento_id:40,tipo_documento:'diploma',metadatos:{},file:btoa('%PDF-1.4\n')}));
   firmarCeremoniaRector = vi.fn(() => of(resultado));
   getFirmasCeremoniaRector = vi.fn(() => of({
@@ -154,6 +155,8 @@ describe('FirmaSecretarioComponent en modo rector', () => {
 
     expect(component.procesando()).toBe(false);
     expect(component.error()).toBe(`HTTP ${status}`);
+    expect(api.getFirmasCeremoniaRector).toHaveBeenCalled();
+    expect(api.getTableroCeremoniasRector).toHaveBeenCalled();
     expect(fire).toHaveBeenCalledTimes(2);
   });
   it('quita capa de carga antes de mostrar aviso de rúbrica ausente y continúa al tablero', async () => {
@@ -177,6 +180,41 @@ describe('FirmaSecretarioComponent en modo rector', () => {
     expect(api.getTableroCeremoniasRector).toHaveBeenCalledOnce();
     expect(fire).not.toHaveBeenCalled();
     expect(component.procesando()).toBe(false);
+  });
+
+  it.each([true, false])('respeta permiso de reversión entregado por backend: %s', (permitido) => {
+    vi.spyOn(component, 'modoFirma').mockReturnValue('secretario');
+    expect(component.puedeRevertir({firma_secretario:true,puede_revertir:permitido} as never)).toBe(permitido);
+    expect(component.puedeRevertir({firma_secretario:true} as never)).toBe(false);
+  });
+
+  it('no envía reversión si backend indica firma posterior o ajena', async () => {
+    vi.spyOn(component, 'modoFirma').mockReturnValue('secretario');
+    const fire = vi.spyOn(Swal,'fire');
+    await component.anularFirma({documento_digital_id:40,firma_secretario:true,puede_revertir:false} as never);
+    expect(api.anularFirmaDocumento).not.toHaveBeenCalled();
+    expect(fire).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('refresca estado tras reversión; conflicto=%s', async (conflicto) => {
+    vi.spyOn(component, 'modoFirma').mockReturnValue('secretario');
+    const refresh = vi.spyOn(component,'seleccionarCeremonia').mockImplementation(async () => {
+      component.detalle.set({ceremonia,total:1,firmados:conflicto?1:0,pendientes:conflicto?0:1,estudiantes:[]} as never);
+      component.estado.set('idle');
+      component.error.set(null);
+    });
+    const board = vi.spyOn(component,'cargarCeremonias').mockResolvedValue();
+    if (conflicto) api.anularFirmaDocumento.mockReturnValueOnce(throwError(() => new Error('Existe una firma posterior')));
+    const fire = vi.spyOn(Swal,'fire').mockResolvedValue({isConfirmed:true} as never);
+    await component.anularFirma({documento_digital_id:40,firma_secretario:true,puede_revertir:true} as never);
+    expect(api.anularFirmaDocumento).toHaveBeenCalledOnce();
+    expect(refresh).toHaveBeenCalledWith(ceremonia);
+    expect(board).toHaveBeenCalled();
+    expect(component.detalle()?.firmados).toBe(conflicto?1:0);
+    expect(component.procesando()).toBe(false);
+    const dialogs=fire.mock.calls.map(call=>call[0] as {icon?:string});
+    expect(dialogs.some(dialog=>dialog.icon==='success')).toBe(!conflicto);
+    if (conflicto) expect(component.error()).toBe('Existe una firma posterior');
   });
 
 });

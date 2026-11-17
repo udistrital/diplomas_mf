@@ -55,18 +55,6 @@
             <span>Cargo</span>
             <strong>{{ firmanteActivo.cargo }}</strong>
           </div>
-          <div>
-            <span>Rol</span>
-            <strong>{{ firmanteActivo.rol }}</strong>
-          </div>
-          <div>
-            <span>Documento</span>
-            <strong>{{ firmanteActivo.documento_identidad }}</strong>
-          </div>
-          <div>
-            <span>Orden</span>
-            <strong>{{ firmanteActivo.orden || 'No definido' }}</strong>
-          </div>
         </section>
       }
     </mat-card-content>
@@ -94,7 +82,7 @@
             <mat-icon aria-hidden="true">task_alt</mat-icon>
             <div>
               <span>Firma actual</span>
-              <strong>{{ enlaceFirmaActual() }}</strong>
+
             </div>
           </div>
           @if (firmaImagenActual(); as firmaImagen) {
@@ -167,7 +155,7 @@
 
       @if (resultado(); as resultadoFirma) {
         <p class="message message--success" role="status" aria-live="polite">
-          Firma cargada correctamente. Enlace: {{ resultadoFirma.enlace_firma }}
+          Firma cargada correctamente.
         </p>
       }
       @if (error()) {

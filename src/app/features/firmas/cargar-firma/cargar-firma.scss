@@ -1,11 +1,12 @@
 .firma-page {
+  box-sizing: border-box;
   width: min(100%, 980px);
   margin: 0 auto;
-  padding: 36px 20px 56px;
+  padding: 20px 16px 36px;
 }
 
 .page-header {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .eyebrow {
@@ -37,11 +38,11 @@
 }
 
 .firma-card mat-card-header {
-  padding: 24px 24px 0;
+  padding: 16px 18px 0;
 }
 
 .firma-card mat-card-content {
-  padding: 20px 24px 24px;
+  padding: 16px 18px 18px;
 }
 
 .document-form {

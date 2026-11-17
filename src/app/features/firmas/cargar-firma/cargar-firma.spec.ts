@@ -174,6 +174,8 @@ describe('CargarFirmaComponent', () => {
 
     expect(component.estado()).toBe('exito');
     expect(component.resultado()?.enlace_firma).toBe('uuid-firma-nueva');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain('uuid-firma-nueva');
   });
 
   it('muestra la firma registrada si el firmante ya tiene una activa', async () => {
@@ -184,7 +186,11 @@ describe('CargarFirmaComponent', () => {
 
     expect(component.enlaceFirmaActual()).toBe('uuid-firma-existente');
     expect(component.firmaImagenActual()).toBe('data:image/png;base64,AAAA');
-    expect(fixture.nativeElement.textContent).toContain('uuid-firma-existente');
+    expect(fixture.nativeElement.textContent).not.toContain('uuid-firma-existente');
+    const identity = fixture.nativeElement.querySelector('.firmante-info').textContent;
+    expect(identity).toContain('Ada Lovelace');
+    expect(identity).toContain('RECTOR');
+    for (const hidden of ['rector', 'Orden', 'Documento', '10000000']) expect(identity).not.toContain(hidden);
     const image = fixture.debugElement.query(By.css('.firma-actual__preview img')).nativeElement as HTMLImageElement;
     expect(image.src).toContain('data:image/png;base64,AAAA');
   });

@@ -391,6 +391,9 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
       this.error.set(mensaje);
       this.estado.set('error');
       await this.mostrarError(mensaje);
+      await this.seleccionarCeremonia(ceremonia);
+      await this.cargarCeremonias();
+      this.error.set(mensaje);
     }
   }
 
@@ -398,7 +401,7 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
   async anularFirma(estudiante: CeremoniaFirmaEstudianteResumen): Promise<void> {
     const ceremonia = this.ceremoniaSeleccionada();
     const documento = this.documentoSecretario();
-    if (!ceremonia || !documento || this.firmando() || !this.estudianteFirmadoEnModo(estudiante)) {
+    if (!ceremonia || !documento || this.firmando() || !this.puedeRevertir(estudiante)) {
       return;
     }
     const confirmacion = await Swal.fire({
@@ -419,6 +422,8 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
     this.error.set(null);
     try {
       const result = await firstValueFrom(this.api.anularFirmaDocumento(estudiante.documento_digital_id, { documento_identidad_firmante: documento }));
+      if (result.anuladas < 1) throw new Error('No se revirtió ninguna firma. Actualice el diploma e intente nuevamente.');
+      this.estado.set('idle');
       await Swal.fire({
         title: 'Firma revertida',
         text: `Se anularon ${result.anuladas} registro(s).`,
@@ -436,7 +441,12 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
       await this.mostrarError(mensaje);
       await this.seleccionarCeremonia(ceremonia);
       await this.cargarCeremonias();
+      this.error.set(mensaje);
     }
+  }
+
+  puedeRevertir(estudiante: CeremoniaFirmaEstudianteResumen): boolean {
+    return estudiante.puede_revertir === true && this.estudianteFirmadoEnModo(estudiante) && this.modoFirma() !== 'rector';
   }
 
   estudianteFirmadoEnModo(estudiante: CeremoniaFirmaEstudianteResumen): boolean {

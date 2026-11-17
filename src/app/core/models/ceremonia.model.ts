@@ -179,6 +179,7 @@ export interface CeremoniaFirmaEstudianteResumen {
   firma_decano?: boolean;
   firma_secretaria_general?: boolean;
   firma_rector?: boolean;
+  puede_revertir?: boolean;
   puede_firmar: boolean;
   motivo_bloqueo?: string;
 }
