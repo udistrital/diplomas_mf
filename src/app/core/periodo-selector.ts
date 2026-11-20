@@ -1,7 +1,7 @@
-import { Component, OnInit, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, computed, inject, Input, ViewChild, signal, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
+import { MatSelect, MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { firstValueFrom } from 'rxjs';
 import { DiplomasApiService } from './services/diplomas-api.service';
@@ -14,21 +14,21 @@ import { PeriodoAcademicoService } from './services/periodo-academico.service';
     <section class="periodo-panel" aria-label="Período académico">
       <mat-form-field appearance="outline">
         <mat-label>Período académico</mat-label>
-        <mat-select [value]="estado.seleccionado()?.Id ?? null" (selectionChange)="seleccionar($event.value)" [disabled]="cargando()">
+        <mat-select [value]="estado.seleccionado()?.Id ?? null" (selectionChange)="seleccionar($event.value)" [disabled]="cargando() || bloqueado">
           <mat-select-trigger>{{ estado.seleccionado()?.Nombre }}</mat-select-trigger>
           <mat-option [value]="null">Seleccione un período</mat-option>
-          @for (p of periodosActivos(); track p.Id) {
+          @for (p of periodosDisponibles(); track p.Id) {
             <mat-option [value]="p.Id">{{ p.Nombre }}</mat-option>
           }
         </mat-select>
       </mat-form-field>
-      <a mat-stroked-button routerLink="/aprobados">Estudiantes aprobados</a>
+      @if (mostrarEnlace) { <a mat-stroked-button routerLink="/aprobados">Estudiantes aprobados</a> }
       @if (cargando()) { <span role="status">Cargando períodos…</span> }
       @if (error()) {
         <span class="error" role="alert">{{ error() }}</span>
         <button mat-button type="button" (click)="cargar()">Reintentar</button>
       }
-      @if (!cargando() && !error() && !periodosActivos().length) { <span>No hay períodos académicos activos.</span> }
+      @if (!cargando() && !error() && !periodosDisponibles().length) { <span>No hay períodos académicos disponibles.</span> }
     </section>
   `,
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -40,6 +40,11 @@ import { PeriodoAcademicoService } from './services/periodo-academico.service';
   `
 })
 export class PeriodoSelectorComponent implements OnInit {
+  @Input() antesDeCambiar: () => boolean = () => true;
+  @Input() bloqueado = false;
+  @Input() mostrarEnlace = true;
+  @Input() incluirHistoricos = false;
+  @ViewChild(MatSelect) private selector?: MatSelect;
   readonly estado = inject(PeriodoAcademicoService);
   private readonly api = inject(DiplomasApiService);
   readonly periodos = this.estado.periodos;
@@ -62,7 +67,18 @@ export class PeriodoSelectorComponent implements OnInit {
     }
   }
 
+  periodosDisponibles() {
+    return this.incluirHistoricos ? this.periodos() : this.periodosActivos();
+  }
+
   seleccionar(raw: string | number | null): void {
-    this.estado.seleccionado.set(this.periodosActivos().find(p => p.Id === Number(raw)) ?? null);
+    const siguiente = this.periodosDisponibles().find(p => p.Id === Number(raw)) ?? null;
+    if (siguiente?.Id === this.estado.seleccionado()?.Id) return;
+    if (this.bloqueado || !this.antesDeCambiar()) {
+      // Restore the displayed value when the user cancels discarding changes.
+      if (this.selector) this.selector.value = this.estado.seleccionado()?.Id ?? null;
+      return;
+    }
+    this.estado.seleccionado.set(siguiente);
   }
 }
