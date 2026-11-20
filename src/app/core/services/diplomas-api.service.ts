@@ -37,10 +37,11 @@ export class DiplomasApiService {
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'firma'))));
   }
 
-  getTableroCeremonias(documento: number): Observable<TableroCeremoniasResult> {
+  getTableroCeremonias(documento: number, resumenFirmas = false): Observable<TableroCeremoniasResult> {
     let params = new HttpParams().set('documento_identidad_secretario', String(documento));
     const periodo = this.periodo.seleccionado();
     if (periodo) params = params.set('periodo_id', periodo.Id);
+    if (resumenFirmas) params = params.set('resumen_firmas', 'true');
     return this.http
       .get<TableroCeremoniasResult>(`${this.baseUrl}/ceremonias`, { params, headers: this.authHeaders() })
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
@@ -59,8 +60,9 @@ export class DiplomasApiService {
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
   }
 
-  getTableroCeremoniasDecano(documento: number): Observable<TableroCeremoniasResult> {
-    const params = new HttpParams().set('documento_identidad_decano', String(documento));
+  getTableroCeremoniasDecano(documento: number, resumenFirmas = false): Observable<TableroCeremoniasResult> {
+    let params = new HttpParams().set('documento_identidad_decano', String(documento));
+    if (resumenFirmas) params = params.set('resumen_firmas', 'true').set('periodo_id', this.periodo.exigirId());
     return this.http
       .get<TableroCeremoniasResult>(`${this.baseUrl}/ceremonias/decano`, { params, headers: this.authHeaders() })
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));

@@ -1,3 +1,4 @@
+import { PeriodoSelectorComponent } from '../../../core/periodo-selector';
 import { PeriodoAcademicoService } from '../../../core/services/periodo-academico.service';
 import { ɵresolveComponentResources as resolveComponentResources } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
@@ -25,6 +26,8 @@ const tableroMock = {
 };
 
 class DiplomasApiServiceMock {
+  getEstudiantesAprobados = vi.fn(() => of({ total: 12, errores: 0, facultades: [] }));
+  getParametrizacionRegistro = vi.fn(() => of({vigencia:2026,libro_inicial:1,folio_inicial:1,registro_inicial:1,consecutivo_facultad_inicial:1,folios_por_libro:200,registros_por_folio:5}));
   asignarEstudiantesCeremonia = vi.fn(() => of({asignados:1,omitidos:0,errores:0,ceremonia_id:99}));
   getTableroCeremonias = vi.fn(() => of(tableroMock));
   crearCeremonia = vi.fn(() => of({ ceremonia: { periodo_id:77, id: 99, lugar: 'Auditorio Mayor', cantidad_estudiantes_programada: 40, activo: true }, facultad: { id: 100, facultad_id: 158, programa_academico_id: 0, cantidad_estudiantes_programada: 40, activo: true }, secretario_academico: { rol: 'secretario_academico', orden: 1, cargo_id: 158, cargo: 'SECRETARIO ACADEMICO', nombre: 'Secretaria', documento_identidad: 1023026828 } }));
@@ -60,6 +63,7 @@ describe('NuevaCeremoniaComponent', () => {
     api = TestBed.inject(DiplomasApiService) as unknown as DiplomasApiServiceMock;
     fixture.detectChanges();
     await fixture.whenStable();
+    await vi.waitFor(() => expect(component.estado()).toBe('idle'));
     fixture.detectChanges();
   });
 
@@ -118,36 +122,48 @@ describe('NuevaCeremoniaComponent', () => {
     const actual = new Subject<typeof tableroMock>();
     api.getTableroCeremonias.mockReturnValueOnce(anterior).mockReturnValueOnce(actual);
     const oldLoad = component.cargarTablero();
+    await Promise.resolve();
     estado.seleccionado.set({Id:75,Nombre:'2026-1',Year:2026,Ciclo:'1',CodigoAbreviacion:'PA',Activo:false});
     const newLoad = component.cargarTablero();
+    await Promise.resolve();
     actual.next({...tableroMock,aprobados_total:3});actual.complete();await newLoad;
     anterior.next({...tableroMock,aprobados_total:90});anterior.complete();await oldLoad;
     expect(component.tablero()?.aprobados_total).toBe(3);
     expect(component.programaAsignacion()).toBeNull();
   });
 
-  it('muestra ceremonias históricas sin período pero bloquea creación hasta configurarlo', async () => {
+  it('muestra únicamente selección inicial sin período y no consulta datos dependientes', async () => {
+    api.getTableroCeremonias.mockClear();
+    api.getEstudiantesAprobados.mockClear();
+    api.getParametrizacionRegistro.mockClear();
     TestBed.inject(PeriodoAcademicoService).seleccionado.set(null);
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(component.tablero()?.ceremonias[0].id).toBe(99);
+    expect(component.tablero()).toBeNull();
+    expect(api.getTableroCeremonias).not.toHaveBeenCalled();
+    expect(api.getEstudiantesAprobados).not.toHaveBeenCalled();
+    expect(api.getParametrizacionRegistro).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelector('.stack-layout')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.summary-panel')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Es necesario seleccionar');
     api.getTableroCeremonias.mockClear();
     llenarFormulario();
     await component.guardar();
     expect(api.crearCeremonia).not.toHaveBeenCalled();
     expect(component.form.controls.periodo_id.invalid).toBe(true);
-    expect(component.tablero()?.total_ceremonias).toBe(1);
+    expect(component.tablero()).toBeNull();
   });
 
   it('consulta pendientes al elegir período y conserva programa Oikos 72', async () => {
     const periodo = TestBed.inject(PeriodoAcademicoService);
-    api.getTableroCeremonias.mockReturnValueOnce(of({...tableroMock,aprobados_total:0,aprobados_programas:[]}));
     periodo.seleccionado.set(null);
     fixture.detectChanges();await fixture.whenStable();fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('Sin consultar');
+    expect(fixture.nativeElement.textContent).toContain('Es necesario seleccionar');
     api.getTableroCeremonias.mockReturnValueOnce(of({...tableroMock,aprobados_total:1,aprobados_programas:[{programa_academico_id:72,nombre:'Programa Oikos 72',cantidad:1}]}));
     periodo.seleccionado.set({Id:77,Nombre:'2026-3',Year:2026,Ciclo:'3',CodigoAbreviacion:'PA',Activo:true});
     fixture.detectChanges();await fixture.whenStable();fixture.detectChanges();
+    await vi.waitFor(() => expect(component.estado()).toBe('idle'));
+    fixture.detectChanges();
     expect(component.programasPendientes()).toEqual([{programa_academico_id:72,nombre:'Programa Oikos 72',cantidad:1}]);
     expect(fixture.nativeElement.textContent).toContain('Programa Oikos 72');
   });
@@ -175,6 +191,82 @@ describe('NuevaCeremoniaComponent', () => {
     expect(component.selectorCeremoniaAbierto()).toBe(false);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[role="alert"]')?.textContent).toContain('No fue posible completar');
+  });
+
+  it('muestra error de aprobados y permite reintentar sin anunciar vacío', async () => {
+    api.getEstudiantesAprobados.mockReturnValueOnce(throwError(() => new Error('Error de paz y salvo')));
+    api.getTableroCeremonias.mockClear();
+    await component.cargarTablero();
+    fixture.detectChanges();
+    expect(api.getTableroCeremonias).not.toHaveBeenCalled();
+    expect(component.tablero()).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Error de paz y salvo');
+    expect(fixture.nativeElement.textContent).toContain('Reintentar');
+    await component.cargarTablero();
+    expect(component.error()).toBeNull();
+    expect(component.tablero()).not.toBeNull();
+  });
+
+  it('presenta vacío solo tras consultar aprobados y tablero correctamente', async () => {
+    api.getTableroCeremonias.mockReturnValueOnce(of({...tableroMock,aprobados_total:0,aprobados_programas:[]}));
+    await component.cargarTablero();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('No hay programas pendientes por asignar.');
+    expect(component.error()).toBeNull();
+  });
+
+  it('advierte cambios sin guardar y conserva contexto al cancelar', () => {
+    component.form.markAsDirty();
+    vi.spyOn(window, 'confirm').mockReturnValueOnce(false);
+    const selector = fixture.debugElement.query(By.directive(PeriodoSelectorComponent)).componentInstance as PeriodoSelectorComponent;
+    selector.seleccionar(null);
+    fixture.detectChanges();
+    expect(window.confirm).toHaveBeenCalled();
+    expect(component.form.dirty).toBe(true);
+    expect(component.periodo.seleccionado()?.Id).toBe(77);
+  });
+
+  it('limpia formularios, parametrización y modales al cambiar período', async () => {
+    llenarFormulario();
+    component.form.markAsDirty();
+    component.editModalAbierto.set(true);
+    component.periodo.seleccionado.set(null);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(component.form.controls.lugar.value).toBe('');
+    expect(component.form.pristine).toBe(true);
+    expect(component.parametrizacionRegistro()).toBeNull();
+    expect(component.editModalAbierto()).toBe(false);
+  });
+
+  it('ignora aprobados tardíos antes de consultar tablero del período anterior', async () => {
+    const respuesta = new Subject<{total:number;errores:number;facultades:never[]}>();
+    api.getEstudiantesAprobados.mockReturnValueOnce(respuesta);
+    api.getTableroCeremonias.mockClear();
+    const carga = component.cargarTablero();
+    component.periodo.seleccionado.set(null);
+    fixture.detectChanges();
+    respuesta.next({total:0,errores:0,facultades:[]});
+    respuesta.complete();
+    await carga;
+    expect(api.getTableroCeremonias).not.toHaveBeenCalled();
+    expect(component.tablero()).toBeNull();
+  });
+
+  it('no presenta pendientes cuando la consulta de aprobados es parcial', async () => {
+    api.getEstudiantesAprobados.mockReturnValueOnce(of({total:1,errores:1,facultades:[]}));
+    api.getTableroCeremonias.mockClear();
+    await component.cargarTablero();
+    expect(component.error()).toContain('contiene errores');
+    expect(api.getTableroCeremonias).not.toHaveBeenCalled();
+    expect(component.tablero()).toBeNull();
+  });
+
+  it('descuenta asignados del catálogo cuando el tablero no incluye pendientes explícitos', () => {
+    component.tablero.set({...tableroMock, asignados_programas:[{programa_academico_id:10,nombre:'Programa 10',cantidad:12}]});
+    expect(component.programasPendientes()).toEqual([]);
+    component.tablero.set({...tableroMock, pendientes_programas:[], asignados_programas:[]});
+    expect(component.programasPendientes()).toEqual([]);
   });
 
 });

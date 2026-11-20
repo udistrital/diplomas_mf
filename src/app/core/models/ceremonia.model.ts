@@ -44,7 +44,15 @@ export interface CrearCeremoniaResult {
   secretario_academico: SecretarioAcademicoResponse;
 }
 
+export interface ResumenFirmasCeremonia {
+  orden: number;
+  total: number;
+  firmados: number;
+  pendientes: number;
+}
+
 export interface CeremoniaResumen {
+  resumen_firmas?: ResumenFirmasCeremonia;
   periodo_id?: number;
   id: number;
   relacion_id: number;

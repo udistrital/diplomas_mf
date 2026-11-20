@@ -3,11 +3,22 @@
     <div>
       <p class="eyebrow">Diplomas digitales</p>
       <h1 id="titulo-ceremonia">Gestión de ceremonias de grado</h1>
-      <p>Parametrice cupos y asigne programas completos mediante un flujo guiado.</p>
+      <p>Seleccione el período académico para gestionar ceremonias y consultar estudiantes aprobados de paz y salvo.</p>
     </div>
-    <button mat-stroked-button color="primary" type="button" (click)="cargarTablero()" [disabled]="cargando()"><mat-icon>refresh</mat-icon><span>Actualizar</span></button>
+    @if (periodo.seleccionado()) { <button mat-stroked-button color="primary" type="button" (click)="cargarTablero()" [disabled]="cargando() || guardando() || asignando()"><mat-icon>refresh</mat-icon><span>Actualizar</span></button> }
   </header>
 
+  <diplomas-periodo-selector [antesDeCambiar]="confirmarCambioPeriodo" [bloqueado]="guardando() || asignando()" [mostrarEnlace]="false" />
+  @if (!periodo.seleccionado()) {
+    <p class="message message--info" role="status">Es necesario seleccionar un período académico para continuar.</p>
+  } @else {
+  @if (cargando()) {
+    <div class="loading" role="status"><mat-progress-spinner diameter="28" mode="indeterminate" /><span>Cargando ceremonias y aprobados de paz y salvo…</span></div>
+  }
+  @if (error()) {
+    <p class="message message--error" role="alert">{{ error() }}</p>
+    <button mat-stroked-button type="button" (click)="cargarTablero()" [disabled]="cargando()">Reintentar</button>
+  }
   @if (tablero(); as data) {
     <section class="summary-panel" aria-label="Resumen de ceremonias">
       <article><span>Ceremonias</span><strong>{{ data.total_ceremonias }}</strong></article>
@@ -17,8 +28,7 @@
     </section>
   }
 
-  @if (error()) {<p class="message message--error" role="alert">{{ error() }}</p>}
-
+  @if (tablero() && !cargando()) {
   <section class="stack-layout">
     <mat-card class="ceremonia-card form-card" appearance="outlined">
       <details class="form-disclosure" #nuevaCeremoniaPanel>
@@ -29,8 +39,7 @@
         </summary>
       <mat-card-content>
 
-        <p class="hint">Configure el período de la ceremonia. Solo podrá asignar aprobados de ese mismo período.</p>
-        <diplomas-periodo-selector />
+        <p class="hint">Período: {{ periodo.seleccionado()?.Nombre }}. La ceremonia utilizará el período activo.</p>
         <form [formGroup]="form" #ceremoniaForm="ngForm" (ngSubmit)="guardar(ceremoniaForm, nuevaCeremoniaPanel)">
           <div class="form-grid">
             <mat-form-field appearance="outline"><mat-label>Fecha</mat-label><input matInput [matDatepicker]="picker" formControlName="fecha_ceremonia" readonly /><mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle><mat-datepicker #picker></mat-datepicker></mat-form-field>
@@ -119,6 +128,7 @@
       </mat-card>
     </div>
   </section>
+  }
 
   @if (editModalAbierto()) {
     <section class="modal-backdrop modal-backdrop--front" role="dialog" aria-modal="true" aria-labelledby="editar-ceremonia-title">
@@ -128,8 +138,7 @@
           <button mat-icon-button type="button" aria-label="Cerrar edición" (click)="cerrarEdicion()"><mat-icon>close</mat-icon></button>
         </header>
         <form class="modal-form" [formGroup]="form" (ngSubmit)="guardar()">
-          <diplomas-periodo-selector />
-          <p class="hint">Cambiar período requiere que la ceremonia no tenga estudiantes asignados.</p>
+          <p class="hint">Período: {{ periodo.seleccionado()?.Nombre }}</p>
           @if (ceremoniaEditando(); as ceremonia) {
             @if (ceremonia.cupos_asignados > 0) {
               <p class="message message--info">Esta ceremonia ya tiene {{ ceremonia.cupos_asignados }} estudiantes asignados. Los cupos no pueden quedar por debajo de esa cantidad.</p>
@@ -184,5 +193,6 @@
         </div>
       </div>
     </section>
+  }
   }
 </main>

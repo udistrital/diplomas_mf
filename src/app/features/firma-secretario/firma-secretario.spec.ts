@@ -9,10 +9,15 @@ import Swal from 'sweetalert2';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DiplomasApiService } from '../../core/services/diplomas-api.service';
+import { PeriodoAcademicoService } from '../../core/services/periodo-academico.service';
 import { FirmaSecretarioComponent } from './firma-secretario';
 
 const ceremonia = {
   id: 4,
+  periodo_id:77,
+  cupos_disponibles:1,
+  lugar:'Auditorio',
+  resumen_firmas:{orden:4,total:1,firmados:0,pendientes:1},
   cupos_asignados: 1,
   fecha_ceremonia: '2026-10-08'
 };
@@ -73,6 +78,7 @@ describe('FirmaSecretarioComponent en modo rector', () => {
       ]
     }).compileComponents();
 
+    TestBed.inject(PeriodoAcademicoService).seleccionado.set({Id:77,Nombre:'2026-3',Year:2026,Ciclo:'3',CodigoAbreviacion:'PA',Activo:true});
     component = TestBed.createComponent(FirmaSecretarioComponent).componentInstance;
     api = TestBed.inject(DiplomasApiService) as unknown as DiplomasApiServiceMock;
     component.firmante.set({
@@ -85,6 +91,7 @@ describe('FirmaSecretarioComponent en modo rector', () => {
       enlace_firma: 'firma'
     });
     component.ceremoniaSeleccionada.set(ceremonia as never);
+    component.detalle.set({ceremonia, total:1, firmados:0, pendientes:1, estudiantes:[{documento_digital_id:40,puede_firmar:true,firma_rector:false}]} as never);
     component.seleccionados.set(new Set([40]));
   });
 
@@ -102,7 +109,12 @@ describe('FirmaSecretarioComponent en modo rector', () => {
       static createObjectURL = create;
       static revokeObjectURL = revoke;
     });
+    component.busqueda.set('Estudiante');
+    component.filtroPrograma.set('Programa activo');
     await component.abrirPreview({documento_digital_id:40} as never);
+    expect(component.ceremoniaSeleccionada()?.id).toBe(4);
+    expect(component.busqueda()).toBe('Estudiante');
+    expect(component.filtroPrograma()).toBe('Programa activo');
     const blob = create.mock.calls[0]?.[0] as Blob;
     expect(blob.type).toBe('application/pdf');
     expect(blob.size).toBe('%PDF-1.4\n'.length);
@@ -140,7 +152,7 @@ describe('FirmaSecretarioComponent en modo rector', () => {
     expect(fire).toHaveBeenCalledTimes(2);
   });
 
-  it.each([409, 500])('cierra el estado de procesamiento tras HTTP %s', async (status) => {
+  it.each([403, 409, 500])('cierra el estado de procesamiento tras HTTP %s', async (status) => {
     api.firmarCeremoniaRector.mockReturnValueOnce(
       throwError(() => new Error(`HTTP ${status}`))
     );
@@ -203,7 +215,7 @@ describe('FirmaSecretarioComponent en modo rector', () => {
       component.estado.set('idle');
       component.error.set(null);
     });
-    const board = vi.spyOn(component,'cargarCeremonias').mockResolvedValue();
+    const board = vi.spyOn(component,'cargarCeremonias').mockImplementation(async () => { await component.seleccionarCeremonia(ceremonia as never); });
     if (conflicto) api.anularFirmaDocumento.mockReturnValueOnce(throwError(() => new Error('Existe una firma posterior')));
     const fire = vi.spyOn(Swal,'fire').mockResolvedValue({isConfirmed:true} as never);
     await component.anularFirma({documento_digital_id:40,firma_secretario:true,puede_revertir:true} as never);

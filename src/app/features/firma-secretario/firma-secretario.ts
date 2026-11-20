@@ -1,7 +1,7 @@
 import { PeriodoSelectorComponent } from '../../core/periodo-selector';
 import { PeriodoAcademicoService } from '../../core/services/periodo-academico.service';
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, effect, OnInit, OnDestroy, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, OnInit, OnDestroy, computed, inject, signal, untracked } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { finalize, firstValueFrom } from 'rxjs';
@@ -53,16 +53,20 @@ interface UsuarioAutenticadoStorage {
 export class FirmaSecretarioComponent implements OnInit, OnDestroy {
   private readonly api = inject(DiplomasApiService);
   readonly periodo = inject(PeriodoAcademicoService);
+  private cargaCeremonias = 0;
+  private cargaEstudiantes = 0;
   private readonly periodoEffect = effect(() => {
-    const seleccionado = this.periodo.seleccionado();
-    if (this.modoConfig().rol !== 'secretario_academico') return;
-    this.tablero.set(null);
-    this.detalle.set(null);
-    this.ceremoniaSeleccionada.set(null);
-    this.seleccionados.set(new Set());
-    this.estado.set('idle');
-    this.error.set(null);
-    if (seleccionado) void this.cargarCeremonias();
+    this.periodo.seleccionado();
+    untracked(() => {
+      ++this.cargaCeremonias;
+      this.tablero.set(null);
+      this.resumenFirmas.set(new Map());
+      this.busquedaCeremonia.set('');
+      this.limpiarContextoCeremonia();
+      this.estado.set('idle');
+      this.error.set(null);
+      void this.cargarCeremonias();
+    });
   });
   private readonly sanitizer = inject(DomSanitizer);
   private readonly router = inject(Router);
@@ -114,7 +118,65 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
   readonly firmando = computed(() => this.estado() === 'firmando');
   readonly procesando = computed(() => this.cargando() || this.firmando());
   readonly firmanteTieneRubrica = computed(() => Boolean(this.firmante()?.enlace_firma || this.firmante()?.firma_firmante?.enlace_firma));
-  readonly ceremoniasConEstudiantes = computed(() => (this.tablero()?.ceremonias ?? []).filter((ceremonia) => Number(ceremonia.cupos_asignados) > 0));
+  readonly filtroCeremonia = signal<'pendientes' | 'completadas' | 'todas'>('pendientes');
+  readonly busquedaCeremonia = signal('');
+  readonly resumenFirmas = signal(new Map<number, { firmados: number; pendientes: number }>());
+  readonly ceremoniasConEstudiantes = computed(() => (this.tablero()?.ceremonias ?? [])
+    .filter(c => c.periodo_id === this.periodo.seleccionado()?.Id && Number(c.cupos_asignados) > 0));
+  readonly totalAsignadosPeriodo = computed(() => this.ceremoniasConEstudiantes().reduce((n, c) => n + c.cupos_asignados, 0));
+  readonly ceremoniasFiltradas = computed(() => {
+    const texto = this.busquedaCeremonia().trim().toLocaleLowerCase();
+    return this.ceremoniasConEstudiantes().filter(c => {
+      const pendientes = this.pendientesCeremonia(c);
+      const cumpleEstado = this.filtroCeremonia() === 'todas' ||
+        (this.filtroCeremonia() === 'completadas' ? pendientes === 0 : pendientes !== null && pendientes > 0);
+      return cumpleEstado && (!texto || `${c.lugar} ${c.fecha_ceremonia} ${this.fechaLegible(c.fecha_ceremonia)}`.toLocaleLowerCase().includes(texto));
+    }).sort((a, b) => this.prioridadCeremonia(a) - this.prioridadCeremonia(b) ||
+      b.fecha_ceremonia.localeCompare(a.fecha_ceremonia) || b.id - a.id);
+  });
+  readonly opcionesCeremonia = computed(() => this.ceremoniasFiltradas().slice(0, 50));
+  readonly activaFueraDeOpciones = computed(() => {
+    const activa = this.ceremoniaSeleccionada();
+    return activa && !this.opcionesCeremonia().some(c => c.id === activa.id) ? activa : null;
+  });
+  private prioridadCeremonia(ceremonia: CeremoniaResumen): number {
+    const pendientes = this.pendientesCeremonia(ceremonia);
+    return pendientes === null ? 1 : pendientes > 0 ? 0 : 2;
+  }
+  readonly activaFueraDelFiltro = computed(() => {
+    const activa = this.ceremoniaSeleccionada();
+    return activa && !this.ceremoniasFiltradas().some(c => c.id === activa.id) ? activa : null;
+  });
+
+  pendientesCeremonia(ceremonia: CeremoniaResumen): number | null {
+    const resumen = this.resumenFirmas().get(ceremonia.id);
+    if (resumen) return resumen.pendientes;
+    if (ceremonia.resumen_firmas?.orden === this.modoConfig().orden) return ceremonia.resumen_firmas.pendientes;
+    return null;
+  }
+
+  etiquetaCeremonia(ceremonia: CeremoniaResumen): string {
+    const pendientes = this.pendientesCeremonia(ceremonia);
+    const estado = pendientes === null ? 'Resumen no disponible' : pendientes === 0 ? 'Completada' : `${pendientes} pendiente${pendientes === 1 ? '' : 's'}`;
+    return `${this.fechaLegible(ceremonia.fecha_ceremonia)} — ${ceremonia.lugar} · ${estado}`;
+  }
+
+  async elegirCeremonia(id: number | null): Promise<void> {
+    const ceremonia = this.ceremoniasConEstudiantes().find(c => c.id === id);
+    if (ceremonia) await this.seleccionarCeremonia(ceremonia);
+    else this.limpiarContextoCeremonia();
+  }
+
+  private limpiarContextoCeremonia(): void {
+    ++this.cargaEstudiantes;
+    this.cerrarPreview();
+    this.ceremoniaSeleccionada.set(null);
+    this.detalle.set(null);
+    this.seleccionados.set(new Set());
+    this.limpiarFiltros();
+    this.estado.set('idle');
+    this.error.set(null);
+  }
   readonly estudiantes = computed(() => this.detalle()?.estudiantes ?? []);
   readonly programasUnicos = computed(() => {
     const estudiantes = this.estudiantes();
@@ -144,8 +206,8 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
         const nombre = (estudiante.nombre_estudiante || '').toLowerCase();
         const codigo = String(estudiante.codigo_estudiante || '').toLowerCase();
         const documento = (estudiante.numero_documento_estudiante || '').toLowerCase();
-        const tipoDoc = (estudiante.tipo_documento_estudiante || '').toLowerCase;
-        if (!nombre.includes(busqueda) && !codigo.includes(busqueda) && !documento.includes(busqueda) && !tipoDoc().includes(busqueda)) {
+        const tipoDoc = (estudiante.tipo_documento_estudiante || '').toLowerCase();
+        if (!nombre.includes(busqueda) && !codigo.includes(busqueda) && !documento.includes(busqueda) && !tipoDoc.includes(busqueda)) {
           return false;
         }
       }
@@ -172,12 +234,12 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit(): Promise<void> {
-    if (this.modoConfig().rol !== 'secretario_academico') await this.cargarCeremonias();
+    // El efecto de período inicializa los cuatro roles.
   }
 
   async cargarCeremonias(): Promise<void> {
     const periodo = this.periodo.seleccionado();
-    if (!periodo && this.modoConfig().rol === 'secretario_academico') return;
+    const carga = ++this.cargaCeremonias;
     const documento = this.documentoSecretario();
     if (!documento) {
       this.error.set('No fue posible identificar el documento del usuario autenticado.');
@@ -189,7 +251,7 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
     this.error.set(null);
     try {
       const firmante = await firstValueFrom(this.api.getFirmanteActivo(documento));
-      if (this.modoConfig().rol === 'secretario_academico' && periodo !== this.periodo.seleccionado()) return;
+      if (carga !== this.cargaCeremonias || periodo !== this.periodo.seleccionado()) return;
       this.firmante.set(firmante);
       const config = this.modoConfig();
       if (firmante.rol !== config.rol || firmante.orden !== config.orden) {
@@ -206,30 +268,38 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
         this.error.set(mensaje);
         this.estado.set('idle');
         await this.mostrarAdvertencia(mensaje);
-        if (this.modoConfig().rol === 'secretario_academico' && periodo !== this.periodo.seleccionado()) return;
+        if (carga !== this.cargaCeremonias || periodo !== this.periodo.seleccionado()) return;
         this.estado.set('cargando');
       }
 
+      if (!periodo) { this.estado.set('idle'); return; }
       const tablero = await firstValueFrom(this.obtenerTablero(documento));
-      if (this.modoConfig().rol === 'secretario_academico' && periodo !== this.periodo.seleccionado()) return;
+      if (carga !== this.cargaCeremonias || periodo !== this.periodo.seleccionado()) return;
+      if ((tablero.ceremonias ?? []).some(c => {
+        const resumen = c.resumen_firmas;
+        return !resumen || resumen.orden !== this.modoConfig().orden ||
+          ![resumen.total, resumen.firmados, resumen.pendientes].every(n => Number.isInteger(n) && n >= 0) ||
+          resumen.total !== resumen.firmados + resumen.pendientes;
+      })) {
+        this.tablero.set(null);
+        throw new Error('No fue posible obtener el resumen de firmas para su rol. Reintente la consulta.');
+      }
       this.tablero.set(tablero);
+      this.resumenFirmas.set(new Map());
       this.estado.set('idle');
 
       const actual = this.ceremoniaSeleccionada();
       if (actual) {
-        const refrescada = tablero.ceremonias.find((ceremonia) => ceremonia.id === actual.id) ?? null;
+        const refrescada = this.ceremoniasConEstudiantes().find((ceremonia) => ceremonia.id === actual.id) ?? null;
         if (refrescada) {
           await this.seleccionarCeremonia(refrescada);
           return;
         }
       }
 
-      const primera = (tablero.ceremonias ?? []).find((ceremonia) => Number(ceremonia.cupos_asignados) > 0);
-      if (primera) {
-        await this.seleccionarCeremonia(primera);
-      }
+      if (actual) this.limpiarContextoCeremonia();
     } catch (error) {
-      if (this.modoConfig().rol === 'secretario_academico' && periodo !== this.periodo.seleccionado()) return;
+      if (carga !== this.cargaCeremonias || periodo !== this.periodo.seleccionado()) return;
       const mensaje = this.mensajeError(error, 'No fue posible cargar las ceremonias.');
       this.error.set(mensaje);
       this.estado.set('error');
@@ -240,8 +310,13 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
   async seleccionarCeremonia(ceremonia: CeremoniaResumen): Promise<void> {
     const periodo = this.periodo.seleccionado();
     const documento = this.documentoSecretario();
-    if (!documento) {
+    if (!periodo || ceremonia.periodo_id !== periodo.Id || !documento) {
       return;
+    }
+    const carga = ++this.cargaEstudiantes;
+    if (this.ceremoniaSeleccionada()?.id !== ceremonia.id) {
+      this.limpiarFiltros();
+      this.cerrarPreview();
     }
     this.ceremoniaSeleccionada.set(ceremonia);
     this.detalle.set(null);
@@ -250,12 +325,12 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
     this.error.set(null);
     try {
       const detalle = await firstValueFrom(this.obtenerFirmasCeremonia(ceremonia.id, documento));
-      if (this.modoConfig().rol === 'secretario_academico' && periodo !== this.periodo.seleccionado()) return;
+      if (carga !== this.cargaEstudiantes || periodo !== this.periodo.seleccionado()) return;
       this.detalle.set(detalle);
       this.estado.set('idle');
-      this.seleccionarTodosPendientes();
+      this.resumenFirmas.update(actual => new Map(actual).set(ceremonia.id, {firmados: detalle.firmados, pendientes: detalle.pendientes}));
     } catch (error) {
-      if (this.modoConfig().rol === 'secretario_academico' && periodo !== this.periodo.seleccionado()) return;
+      if (carga !== this.cargaEstudiantes || periodo !== this.periodo.seleccionado()) return;
       const mensaje = this.mensajeError(error, 'No fue posible cargar estudiantes de la ceremonia.');
       this.error.set(mensaje);
       this.estado.set('error');
@@ -264,7 +339,7 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
   }
 
   toggleEstudiante(estudiante: CeremoniaFirmaEstudianteResumen, checked: boolean): void {
-    if (!estudiante.puede_firmar) {
+    if (!this.estudiantes().some(e => e.documento_digital_id === estudiante.documento_digital_id && e.puede_firmar && !this.estudianteFirmadoEnModo(e))) {
       return;
     }
     const next = new Set(this.seleccionados());
@@ -292,6 +367,8 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
   private previewSolicitud = 0;
 
   ngOnDestroy(): void {
+    ++this.cargaCeremonias;
+    ++this.cargaEstudiantes;
     this.cerrarPreview();
   }
 
@@ -340,9 +417,11 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
   }
 
   async firmarSeleccionados(): Promise<void> {
+    const periodo = this.periodo.seleccionado();
     const ceremonia = this.ceremoniaSeleccionada();
     const documento = this.documentoSecretario();
-    const ids = Array.from(this.seleccionados());
+    const contexto = this.cargaEstudiantes;
+    const ids = this.pendientes().filter(e => this.seleccionados().has(e.documento_digital_id)).map(e => e.documento_digital_id);
     if (!ceremonia || !documento || ids.length === 0 || this.firmando()) {
       return;
     }
@@ -363,7 +442,7 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
       cancelButtonColor: '#5b7080',
       heightAuto: false
     });
-    if (!confirmacion.isConfirmed) {
+    if (!confirmacion.isConfirmed || ceremonia.id !== this.ceremoniaSeleccionada()?.id || contexto !== this.cargaEstudiantes) {
       return;
     }
     this.estado.set('firmando');
@@ -377,29 +456,35 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
           }
         })
       ));
+      if (contexto !== this.cargaEstudiantes) return;
       const errorFirma = result.errores > 0
         ? result.resultados.find((item) => item.error)?.error || 'La firma terminó con errores. Revise el detalle del servicio e intente nuevamente.'
         : null;
       await this.mostrarResultadoFirma(result.firmados, result.omitidos, result.errores, errorFirma);
-      await this.seleccionarCeremonia(ceremonia);
+      if (contexto !== this.cargaEstudiantes) return;
       await this.cargarCeremonias();
+      if (periodo !== this.periodo.seleccionado() || ceremonia.id !== this.ceremoniaSeleccionada()?.id) return;
       if (errorFirma) {
         this.error.set(errorFirma);
       }
     } catch (error) {
+      if (contexto !== this.cargaEstudiantes) return;
       const mensaje = this.mensajeError(error, 'No fue posible firmar los diplomas seleccionados.');
       this.error.set(mensaje);
       this.estado.set('error');
       await this.mostrarError(mensaje);
-      await this.seleccionarCeremonia(ceremonia);
+      if (contexto !== this.cargaEstudiantes) return;
       await this.cargarCeremonias();
+      if (periodo !== this.periodo.seleccionado() || ceremonia.id !== this.ceremoniaSeleccionada()?.id) return;
       this.error.set(mensaje);
     }
   }
 
 
   async anularFirma(estudiante: CeremoniaFirmaEstudianteResumen): Promise<void> {
+    const periodo = this.periodo.seleccionado();
     const ceremonia = this.ceremoniaSeleccionada();
+    const contexto = this.cargaEstudiantes;
     const documento = this.documentoSecretario();
     if (!ceremonia || !documento || this.firmando() || !this.puedeRevertir(estudiante)) {
       return;
@@ -415,13 +500,14 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
       cancelButtonColor: '#5b7080',
       heightAuto: false
     });
-    if (!confirmacion.isConfirmed) {
+    if (!confirmacion.isConfirmed || ceremonia.id !== this.ceremoniaSeleccionada()?.id || contexto !== this.cargaEstudiantes) {
       return;
     }
     this.estado.set('firmando');
     this.error.set(null);
     try {
       const result = await firstValueFrom(this.api.anularFirmaDocumento(estudiante.documento_digital_id, { documento_identidad_firmante: documento }));
+      if (contexto !== this.cargaEstudiantes) return;
       if (result.anuladas < 1) throw new Error('No se revirtió ninguna firma. Actualice el diploma e intente nuevamente.');
       this.estado.set('idle');
       await Swal.fire({
@@ -432,15 +518,18 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
         confirmButtonColor: '#007ea7',
         heightAuto: false
       });
-      await this.seleccionarCeremonia(ceremonia);
+      if (contexto !== this.cargaEstudiantes) return;
       await this.cargarCeremonias();
+      if (periodo !== this.periodo.seleccionado() || ceremonia.id !== this.ceremoniaSeleccionada()?.id) return;
     } catch (error) {
+      if (contexto !== this.cargaEstudiantes) return;
       const mensaje = this.mensajeError(error, 'No fue posible anular la firma del diploma.');
       this.error.set(mensaje);
       this.estado.set('error');
       await this.mostrarError(mensaje);
-      await this.seleccionarCeremonia(ceremonia);
+      if (contexto !== this.cargaEstudiantes) return;
       await this.cargarCeremonias();
+      if (periodo !== this.periodo.seleccionado() || ceremonia.id !== this.ceremoniaSeleccionada()?.id) return;
       this.error.set(mensaje);
     }
   }
@@ -465,13 +554,13 @@ export class FirmaSecretarioComponent implements OnInit, OnDestroy {
   private obtenerTablero(documento: number) {
     switch (this.modoFirma()) {
       case 'decano':
-        return this.api.getTableroCeremoniasDecano(documento);
+        return this.api.getTableroCeremoniasDecano(documento, true);
       case 'secretaria-general':
         return this.api.getTableroCeremoniasSecretariaGeneral(documento);
       case 'rector':
         return this.api.getTableroCeremoniasRector(documento);
       default:
-        return this.api.getTableroCeremonias(documento);
+        return this.api.getTableroCeremonias(documento, true);
     }
   }
 
