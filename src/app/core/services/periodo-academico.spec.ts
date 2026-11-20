@@ -58,4 +58,28 @@ describe('Período académico compartido', () => {
   expect(() => api.asignarEstudiantesCeremonia(1,{documento_identidad_secretario:12,programas:[]})).toThrow('Seleccione');
  });
 
+ it('permite consultar períodos históricos cuando la vista de firma lo solicita', () => {
+  const selector=TestBed.runInInjectionContext(() => new PeriodoSelectorComponent());
+  estado.periodos.set([periodo,{...periodo,Id:75,Activo:false}]);
+  selector.incluirHistoricos=true;
+  expect(selector.periodosDisponibles().map(p=>p.Id)).toEqual([77,75]);
+  selector.seleccionar(75);
+  expect(estado.seleccionado()?.Id).toBe(75);
+ });
+
+ it('solicita resumen de firma solo en la vista de firmantes y propaga el período a decanatura', () => {
+  estado.seleccionado.set(periodo);
+  api.getTableroCeremonias(12,true).subscribe();
+  const secretario=http.expectOne(r=>r.url==='/v1/ceremonias');
+  expect(secretario.request.params.get('resumen_firmas')).toBe('true');
+  expect(secretario.request.params.get('periodo_id')).toBe('77'); secretario.flush({});
+  api.getTableroCeremoniasDecano(12,true).subscribe();
+  const decano=http.expectOne(r=>r.url==='/v1/ceremonias/decano');
+  expect(decano.request.params.get('resumen_firmas')).toBe('true');
+  expect(decano.request.params.get('periodo_id')).toBe('77'); decano.flush({});
+  api.getTableroCeremonias(12).subscribe();
+  const gestion=http.expectOne(r=>r.url==='/v1/ceremonias');
+  expect(gestion.request.params.has('resumen_firmas')).toBe(false); gestion.flush({});
+ });
+
 });

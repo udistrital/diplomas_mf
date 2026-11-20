@@ -1,7 +1,7 @@
 import { PeriodoSelectorComponent } from '../../../core/periodo-selector';
 import { PeriodoAcademicoService } from '../../../core/services/periodo-academico.service';
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, effect, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, effect, computed, inject, signal, untracked } from '@angular/core';
 import { FormControl, FormGroup, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
@@ -38,11 +38,33 @@ export class NuevaCeremoniaComponent implements OnInit {
   constructor() {
     effect(() => {
       const seleccionado = this.periodo.seleccionado();
-      this.form.controls.periodo_id.setValue(seleccionado?.Id ?? null);
-      this.tablero.set(null); this.programaAsignacion.set(null); this.ceremoniaAsignacion.set(null); this.detallePrograma.set(null); this.detalleAbierto.set(false); this.selectorCeremoniaAbierto.set(false); this.estado.set('idle'); this.error.set(null);
-      void this.cargarTablero();
+      untracked(() => {
+        ++this.cargaTablero;
+        ++this.cargaDetalle;
+        ++this.cargaRegistro;
+        this.limpiarFormulario();
+        this.registroForm.reset();
+        this.parametrizacionRegistro.set(null);
+        this.editModalAbierto.set(false);
+        this.tablero.set(null);
+        this.programaAsignacion.set(null);
+        this.ceremoniaAsignacion.set(null);
+        this.detallePrograma.set(null);
+        this.detalleAbierto.set(false);
+        this.selectorCeremoniaAbierto.set(false);
+        this.estado.set('idle');
+        this.error.set(null);
+        if (seleccionado?.Id && seleccionado.Id > 0) void this.cargarTablero();
+      });
     });
   }
+  private cargaTablero = 0;
+  private cargaDetalle = 0;
+  private cargaRegistro = 0;
+  readonly confirmarCambioPeriodo = (): boolean =>
+    !(this.form.dirty || this.registroForm.dirty) ||
+    window.confirm('Hay cambios sin guardar. ¿Desea descartarlos y cambiar de período?');
+
   private readonly snackBar = inject(MatSnackBar);
 
   readonly estado = signal<EstadoCeremonia>('idle');
@@ -82,32 +104,50 @@ export class NuevaCeremoniaComponent implements OnInit {
   readonly cargandoDetalle = computed(() => this.estado() === 'detalle');
   readonly modoEdicion = computed(() => this.editandoId() !== null);
   readonly ceremoniaEditando = computed(() => (this.tablero()?.ceremonias ?? []).find((ceremonia) => ceremonia.id === this.editandoId()) ?? null);
-  readonly programasPendientes = computed(() => this.tablero()?.pendientes_programas ?? this.tablero()?.aprobados_programas ?? []);
+  readonly programasPendientes = computed(() => {
+    const tablero = this.tablero();
+    if (tablero?.pendientes_programas) return tablero.pendientes_programas;
+    return (tablero?.aprobados_programas ?? []).map(programa => ({
+      ...programa,
+      cantidad: Math.max(0, programa.cantidad - (tablero?.asignados_programas ?? [])
+        .filter(asignado => asignado.programa_academico_id === programa.programa_academico_id)
+        .reduce((total, asignado) => total + asignado.cantidad, 0))
+    })).filter(programa => programa.cantidad > 0);
+  });
   readonly programasAsignados = computed(() => this.tablero()?.asignados_programas ?? []);
 
   async ngOnInit(): Promise<void> {
-    // The period effect also loads persisted ceremonies before selecting a period.
+    // El efecto carga el contexto únicamente después de seleccionar un período.
   }
 
   async cargarTablero(): Promise<void> {
     const periodo = this.periodo.seleccionado();
+    if (!periodo || periodo.Id <= 0) return;
     const documento = this.documentoSecretario();
     if (!documento) {
       this.error.set('No fue posible identificar el documento del usuario autenticado.');
       this.estado.set('error');
       return;
     }
+    const carga = ++this.cargaTablero;
+    this.tablero.set(null);
+    this.error.set(null);
     this.estado.set('cargando');
     try {
+      const aprobados = await firstValueFrom(this.api.getEstudiantesAprobados()) as { errores?: number };
+      if (aprobados.errores && aprobados.errores > 0) {
+        throw new Error('La consulta de paz y salvo contiene errores. Reintente antes de asignar programas.');
+      }
+      if (carga !== this.cargaTablero || periodo !== this.periodo.seleccionado()) return;
       const tablero = await firstValueFrom(this.api.getTableroCeremonias(documento));
-      if (periodo !== this.periodo.seleccionado()) return;
+      if (carga !== this.cargaTablero || periodo !== this.periodo.seleccionado()) return;
       this.tablero.set(tablero);
       this.sincronizarVigenciaRegistro();
       await this.cargarParametrizacionRegistro();
-      if (periodo !== this.periodo.seleccionado()) return;
-      this.estado.set('idle');
+      if (carga !== this.cargaTablero || periodo !== this.periodo.seleccionado()) return;
+      if (!this.error()) this.estado.set('idle');
     } catch (error) {
-      if (periodo !== this.periodo.seleccionado()) return;
+      if (carga !== this.cargaTablero || periodo !== this.periodo.seleccionado()) return;
       this.error.set(error instanceof Error ? error.message : 'No fue posible cargar las ceremonias.');
       this.estado.set('error');
     }
@@ -115,14 +155,16 @@ export class NuevaCeremoniaComponent implements OnInit {
 
   async cargarParametrizacionRegistro(): Promise<void> {
     const periodo = this.periodo.seleccionado();
+    if (!periodo || periodo.Id <= 0) return;
     const documento = this.documentoSecretario();
     const vigencia = Number(this.registroForm.controls.vigencia.value);
     if (!documento || !vigencia) {
       return;
     }
+    const carga = ++this.cargaRegistro;
     try {
       const parametrizacion = await firstValueFrom(this.api.getParametrizacionRegistro(documento, vigencia));
-      if (periodo !== this.periodo.seleccionado()) return;
+      if (carga !== this.cargaRegistro || periodo !== this.periodo.seleccionado() || vigencia !== Number(this.registroForm.controls.vigencia.value)) return;
       this.parametrizacionRegistro.set(parametrizacion);
       this.registroForm.patchValue({
         vigencia,
@@ -133,8 +175,9 @@ export class NuevaCeremoniaComponent implements OnInit {
         folios_por_libro: parametrizacion.folios_por_libro || 200,
         registros_por_folio: parametrizacion.registros_por_folio || 5
       });
+      this.registroForm.markAsPristine();
     } catch (error) {
-      if (periodo !== this.periodo.seleccionado()) return;
+      if (carga !== this.cargaRegistro || periodo !== this.periodo.seleccionado() || vigencia !== Number(this.registroForm.controls.vigencia.value)) return;
       this.error.set(error instanceof Error ? error.message : 'No fue posible cargar la parametrización de registro.');
       this.estado.set('error');
     }
@@ -142,8 +185,9 @@ export class NuevaCeremoniaComponent implements OnInit {
 
   async guardarParametrizacionRegistro(): Promise<void> {
     this.registroForm.markAllAsTouched();
+    const periodo = this.periodo.seleccionado();
     const documento = this.documentoSecretario();
-    if (!documento || this.registroForm.invalid || this.guardando()) {
+    if (!this.periodo.seleccionado() || !documento || this.registroForm.invalid || this.guardando()) {
       return;
     }
     this.estado.set('guardando');
@@ -160,10 +204,13 @@ export class NuevaCeremoniaComponent implements OnInit {
         registros_por_folio: Number(this.registroForm.controls.registros_por_folio.value)
       };
       const result = await firstValueFrom(this.api.guardarParametrizacionRegistro(payload));
+      if (periodo !== this.periodo.seleccionado()) return;
       this.parametrizacionRegistro.set(result);
+      this.registroForm.markAsPristine();
       this.estado.set('idle');
       this.snackBar.open('Parametrización de registro guardada correctamente.', 'Cerrar', { duration: 4500, panelClass: ['snackbar-success'] });
     } catch (error) {
+      if (periodo !== this.periodo.seleccionado()) return;
       this.error.set(error instanceof Error ? error.message : 'No fue posible guardar la parametrización de registro.');
       this.estado.set('error');
     }
@@ -171,11 +218,13 @@ export class NuevaCeremoniaComponent implements OnInit {
 
   async guardar(formDirective?: FormGroupDirective, panel?: HTMLDetailsElement): Promise<void> {
     this.error.set(null);
+    this.form.controls.periodo_id.setValue(this.periodo.seleccionado()?.Id ?? null);
     this.form.markAllAsTouched();
     if (this.form.invalid || this.guardando()) {
       return;
     }
 
+    const periodo = this.periodo.seleccionado();
     const documento = this.documentoSecretario();
     if (!documento) {
       this.error.set('No fue posible identificar el documento del usuario autenticado.');
@@ -203,9 +252,11 @@ export class NuevaCeremoniaComponent implements OnInit {
       const id = this.editandoId();
       if (id) {
         await firstValueFrom(this.api.actualizarCeremonia(id, payload));
+        if (periodo !== this.periodo.seleccionado()) return;
         this.snackBar.open('Ceremonia actualizada correctamente.', 'Cerrar', { duration: 4500, panelClass: ['snackbar-success'] });
       } else {
         await firstValueFrom(this.api.crearCeremonia(payload));
+        if (periodo !== this.periodo.seleccionado()) return;
         this.snackBar.open('Ceremonia creada correctamente.', 'Cerrar', { duration: 4500, panelClass: ['snackbar-success'] });
       }
       this.estado.set('éxito');
@@ -214,6 +265,7 @@ export class NuevaCeremoniaComponent implements OnInit {
       if (panel) panel.open = false;
       await this.cargarTablero();
     } catch (error) {
+      if (periodo !== this.periodo.seleccionado()) return;
       this.error.set(error instanceof Error ? error.message : 'No fue posible guardar la ceremonia.');
       this.estado.set('error');
     }
@@ -235,27 +287,31 @@ export class NuevaCeremoniaComponent implements OnInit {
   }
 
   async cargarDetallePrograma(programa: ProgramaAprobadoResumen): Promise<void> {
- const periodo = this.periodo.seleccionado(); if (!periodo) return;
+    const periodo = this.periodo.seleccionado();
+    if (!periodo) return;
     const documento = this.documentoSecretario();
     if (!documento) {
       return;
     }
+    const carga = ++this.cargaDetalle;
     this.estado.set('detalle');
     this.error.set(null);
     this.detallePrograma.set(null);
     try {
       const detalle = await firstValueFrom(this.api.getEstudiantesProgramaCeremonia(programa.programa_academico_id, documento));
-      if (periodo !== this.periodo.seleccionado()) return;
- this.detallePrograma.set(detalle);
+      if (carga !== this.cargaDetalle || periodo !== this.periodo.seleccionado()) return;
+      this.detallePrograma.set(detalle);
       this.estado.set('idle');
     } catch (error) {
-      if (periodo !== this.periodo.seleccionado()) return;
+      if (carga !== this.cargaDetalle || periodo !== this.periodo.seleccionado()) return;
       this.error.set(error instanceof Error ? error.message : 'No fue posible consultar estudiantes del programa.');
       this.estado.set('error');
     }
   }
 
   cerrarDetalle(): void {
+    ++this.cargaDetalle;
+    if (this.cargandoDetalle()) this.estado.set('idle');
     this.detalleAbierto.set(false);
     this.selectorCeremoniaAbierto.set(false);
   }
@@ -281,6 +337,7 @@ export class NuevaCeremoniaComponent implements OnInit {
   async asignarEstudiantes(): Promise<void> {
     const ceremonia = this.ceremoniaAsignacion();
     const programa = this.programaAsignacion();
+    const periodo = this.periodo.seleccionado();
     const documento = this.documentoSecretario();
     if (!ceremonia || !programa || !documento || this.asignando()) {
       return;
@@ -299,10 +356,12 @@ export class NuevaCeremoniaComponent implements OnInit {
     this.error.set(null);
     try {
       const result = await firstValueFrom(this.api.asignarEstudiantesCeremonia(ceremonia.id, { documento_identidad_secretario: documento, programas: [{ programa_academico_id: programa.programa_academico_id }] }));
+      if (periodo !== this.periodo.seleccionado()) return;
       if (result.errores > 0) {
         const mensaje = `Asignados: ${result.asignados}. Omitidos: ${result.omitidos}. Errores: ${result.errores}. No fue posible completar la asignación; intente nuevamente.`;
         this.selectorCeremoniaAbierto.set(false);
         await this.cargarTablero();
+        if (periodo !== this.periodo.seleccionado()) return;
         this.error.set(mensaje);
         this.estado.set('error');
         this.snackBar.open(mensaje, 'Cerrar', { duration: 8000 });
@@ -318,6 +377,7 @@ export class NuevaCeremoniaComponent implements OnInit {
       this.detallePrograma.set(null);
       await this.cargarTablero();
     } catch (error) {
+      if (periodo !== this.periodo.seleccionado()) return;
       this.error.set(error instanceof Error ? error.message : 'No fue posible asignar el programa a la ceremonia.');
       this.estado.set('error');
     }
@@ -333,6 +393,7 @@ export class NuevaCeremoniaComponent implements OnInit {
       this.snackBar.open(programa.motivo_bloqueo || 'El programa ya inició el flujo de diplomas y no puede reasignarse.', 'Cerrar', { duration: 5000 });
       return;
     }
+    const periodo = this.periodo.seleccionado();
     const documento = this.documentoSecretario();
     if (!documento || !programa.ceremonia_id) {
       return;
@@ -343,9 +404,11 @@ export class NuevaCeremoniaComponent implements OnInit {
     this.estado.set('asignando');
     try {
       const result = await firstValueFrom(this.api.quitarProgramaCeremonia(programa.ceremonia_id, { documento_identidad_secretario: documento, programa_academico_id: programa.programa_academico_id }));
+      if (periodo !== this.periodo.seleccionado()) return;
       this.snackBar.open(`Programa retirado: ${result.asignados} estudiantes liberados.`, 'Cerrar', { duration: 4500, panelClass: ['snackbar-success'] });
       await this.cargarTablero();
     } catch (error) {
+      if (periodo !== this.periodo.seleccionado()) return;
       this.error.set(error instanceof Error ? error.message : 'No fue posible quitar el programa de la ceremonia.');
       this.estado.set('error');
     }
@@ -356,8 +419,7 @@ export class NuevaCeremoniaComponent implements OnInit {
       this.snackBar.open(ceremonia.motivo_bloqueo || 'La ceremonia ya inició el flujo de diplomas y no puede editarse.', 'Cerrar', { duration: 5000 });
       return;
     }
-    const periodo = this.periodo.periodos().find(p => p.Id === ceremonia.periodo_id) ?? null;
-    this.periodo.seleccionado.set(periodo);
+    if (ceremonia.periodo_id !== this.periodo.seleccionado()?.Id) return;
 
     this.editandoId.set(ceremonia.id);
     this.form.patchValue({
@@ -380,6 +442,7 @@ export class NuevaCeremoniaComponent implements OnInit {
       this.snackBar.open(ceremonia.motivo_bloqueo || 'La ceremonia tiene estudiantes asignados y no puede eliminarse.', 'Cerrar', { duration: 5000 });
       return;
     }
+    const periodo = this.periodo.seleccionado();
     const documento = this.documentoSecretario();
     if (!documento || !confirm(`¿Eliminar la ceremonia del ${this.fechaLegible(ceremonia.fecha_ceremonia)} en ${ceremonia.lugar}?`)) {
       return;
@@ -387,9 +450,11 @@ export class NuevaCeremoniaComponent implements OnInit {
     this.estado.set('guardando');
     try {
       await firstValueFrom(this.api.eliminarCeremonia(ceremonia.id, documento));
+      if (periodo !== this.periodo.seleccionado()) return;
       this.snackBar.open('Ceremonia eliminada correctamente.', 'Cerrar', { duration: 4500, panelClass: ['snackbar-success'] });
       await this.cargarTablero();
     } catch (error) {
+      if (periodo !== this.periodo.seleccionado()) return;
       this.error.set(error instanceof Error ? error.message : 'No fue posible eliminar la ceremonia.');
       this.estado.set('error');
     }
