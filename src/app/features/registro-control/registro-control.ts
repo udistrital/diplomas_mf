@@ -84,7 +84,7 @@ export class RegistroControlComponent implements OnInit {
           enlace.download = 'diplomas_registro_control.zip';
           enlace.click();
           URL.revokeObjectURL(url);
-          this.mensaje.set('Archivo ZIP generado correctamente.');
+          this.mensaje.set('ZIP con diplomas y reporte Excel generado correctamente.');
         },
         error: (error) => void this.mostrarErrorDescarga(error)
       });
