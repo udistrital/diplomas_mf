@@ -123,7 +123,7 @@
       <mat-card class="ceremonia-card programs-card" appearance="outlined">
         <mat-card-content>
           <div class="card-title"><mat-icon>groups</mat-icon><h2>Programas pendientes</h2></div>
-          <p class="hint">Seleccione un programa para revisar estudiantes y asignarlo a una ceremonia.</p>
+          <p class="hint">Se muestran los programas de su facultad para el período seleccionado. Seleccione uno para revisar estudiantes y asignarlo a una ceremonia.</p>
           <div class="program-grid">
             @for (programa of programasPendientes(); track programa.programa_academico_id) {
               <button class="program-item program-button" type="button" (click)="seleccionarPrograma(programa)"><span>{{ programa.nombre }}</span><strong>{{ programa.cantidad }}</strong></button>
