@@ -438,7 +438,7 @@ export class NuevaCeremoniaComponent implements OnInit {
   }
 
   async eliminar(ceremonia: CeremoniaResumen): Promise<void> {
-    if (ceremonia.puede_eliminar === false) {
+    if (ceremonia.cupos_asignados > 0 || ceremonia.puede_eliminar === false) {
       this.snackBar.open(ceremonia.motivo_bloqueo || 'La ceremonia tiene estudiantes asignados y no puede eliminarse.', 'Cerrar', { duration: 5000 });
       return;
     }
