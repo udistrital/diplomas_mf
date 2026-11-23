@@ -19,6 +19,22 @@
     <p class="message message--error" role="alert">{{ error() }}</p>
     <button mat-stroked-button type="button" (click)="cargarTablero()" [disabled]="cargando()">Reintentar</button>
   }
+  @if (incidenciasAprobados(); as incidencias) {
+    <div class="message message--info" role="status">
+      <p>No fue posible completar los datos para diploma de {{ incidencias.cantidad }} estudiante(s).
+        Puede gestionar las ceremonias; al asignar se validarán los datos de cada estudiante.</p>
+      @if (incidencias.detalles.length) {
+        <details>
+          <summary>Ver estudiantes y motivos</summary>
+          <ul>
+            @for (detalle of incidencias.detalles; track $index) {
+              <li>{{ detalle.codigo_estudiante }}: {{ detalle.error }}</li>
+            }
+          </ul>
+        </details>
+      }
+    </div>
+  }
   @if (tablero(); as data) {
     <section class="summary-panel" aria-label="Resumen de ceremonias">
       <article><span>Ceremonias</span><strong>{{ data.total_ceremonias }}</strong></article>

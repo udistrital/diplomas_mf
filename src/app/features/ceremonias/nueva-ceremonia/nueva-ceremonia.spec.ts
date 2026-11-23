@@ -253,13 +253,28 @@ describe('NuevaCeremoniaComponent', () => {
     expect(component.tablero()).toBeNull();
   });
 
-  it('no presenta pendientes cuando la consulta de aprobados es parcial', async () => {
-    api.getEstudiantesAprobados.mockReturnValueOnce(of({total:1,errores:1,facultades:[]}));
+  it('muestra incidencias individuales sin bloquear el tablero de ceremonias', async () => {
+    api.getEstudiantesAprobados.mockReturnValueOnce(of({total:62,errores:38,facultades:[]}));
     api.getTableroCeremonias.mockClear();
     await component.cargarTablero();
-    expect(component.error()).toContain('contiene errores');
-    expect(api.getTableroCeremonias).not.toHaveBeenCalled();
-    expect(component.tablero()).toBeNull();
+    fixture.detectChanges();
+    expect(component.error()).toBeNull();
+    expect(component.incidenciasAprobados()?.cantidad).toBe(38);
+    expect(api.getTableroCeremonias).toHaveBeenCalled();
+    expect(component.tablero()).toEqual(tableroMock);
+    expect(fixture.nativeElement.textContent).toContain('38 estudiante(s)');
+    await component.cargarTablero();
+    expect(component.incidenciasAprobados()).toBeNull();
+  });
+
+  it('descarta incidencias de aprobados al cambiar de período', async () => {
+    component.incidenciasAprobados.set({cantidad:1,detalles:[{codigo_estudiante:123,error:'Datos incompletos'}]});
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('123: Datos incompletos');
+    component.periodo.seleccionado.set(null);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(component.incidenciasAprobados()).toBeNull();
   });
 
   it('descuenta asignados del catálogo cuando el tablero no incluye pendientes explícitos', () => {

@@ -54,6 +54,7 @@ export class NuevaCeremoniaComponent implements OnInit {
         this.selectorCeremoniaAbierto.set(false);
         this.estado.set('idle');
         this.error.set(null);
+        this.incidenciasAprobados.set(null);
         if (seleccionado?.Id && seleccionado.Id > 0) void this.cargarTablero();
       });
     });
@@ -69,6 +70,7 @@ export class NuevaCeremoniaComponent implements OnInit {
 
   readonly estado = signal<EstadoCeremonia>('idle');
   readonly error = signal<string | null>(null);
+  readonly incidenciasAprobados = signal<{ cantidad: number; detalles: { codigo_estudiante: number; error: string }[] } | null>(null);
   readonly tablero = signal<TableroCeremoniasResult | null>(null);
   readonly editandoId = signal<number | null>(null);
   readonly editModalAbierto = signal(false);
@@ -133,12 +135,13 @@ export class NuevaCeremoniaComponent implements OnInit {
     this.tablero.set(null);
     this.error.set(null);
     this.estado.set('cargando');
+    this.incidenciasAprobados.set(null);
     try {
-      const aprobados = await firstValueFrom(this.api.getEstudiantesAprobados()) as { errores?: number };
-      if (aprobados.errores && aprobados.errores > 0) {
-        throw new Error('La consulta de paz y salvo contiene errores. Reintente antes de asignar programas.');
-      }
+      const aprobados = await firstValueFrom(this.api.getEstudiantesAprobados()) as { errores?: number; estudiantes_con_error?: { codigo_estudiante: number; error: string }[] };
       if (carga !== this.cargaTablero || periodo !== this.periodo.seleccionado()) return;
+      if (aprobados.errores && aprobados.errores > 0) {
+        this.incidenciasAprobados.set({ cantidad: aprobados.errores, detalles: aprobados.estudiantes_con_error ?? [] });
+      }
       const tablero = await firstValueFrom(this.api.getTableroCeremonias(documento));
       if (carga !== this.cargaTablero || periodo !== this.periodo.seleccionado()) return;
       this.tablero.set(tablero);
