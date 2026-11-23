@@ -84,7 +84,7 @@ export class RegistroControlComponent implements OnInit {
           enlace.download = 'diplomas_registro_control.zip';
           enlace.click();
           URL.revokeObjectURL(url);
-          this.mensaje.set('ZIP con diplomas y reporte Excel generado correctamente.');
+          this.mensaje.set('ZIP con diplomas originales generado correctamente.');
         },
         error: (error) => void this.mostrarErrorDescarga(error)
       });
@@ -92,10 +92,14 @@ export class RegistroControlComponent implements OnInit {
 
   private async mostrarErrorDescarga(error: unknown): Promise<void> {
     let detalle = '';
-    if (error instanceof HttpErrorResponse && error.error instanceof Blob) {
+    if (error instanceof HttpErrorResponse) {
       try {
-        const payload = JSON.parse(await error.error.text()) as { error?: string };
-        detalle = payload.error?.trim() ?? '';
+        const cuerpo: unknown = error.error instanceof Blob ? JSON.parse(await error.error.text()) : error.error;
+        if (cuerpo && typeof cuerpo === 'object') {
+          const payload = cuerpo as { message?: unknown; error?: unknown };
+          const mensaje = typeof payload.message === 'string' ? payload.message : payload.error;
+          detalle = typeof mensaje === 'string' ? mensaje.trim() : '';
+        }
       } catch {
         // La respuesta no contiene JSON legible.
       }

@@ -1,6 +1,7 @@
 import { ɵresolveComponentResources as resolveComponentResources } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
@@ -58,4 +59,24 @@ describe('RegistroControlComponent', () => {
     ]);
     expect(component.diplomasDisponibles()).toBe(8);
   });
+  it.each(['message', 'error'])('muestra el detalle de descarga del MID desde %s en un Blob JSON', async (campo) => {
+    const mensaje = 'No está configurada la consulta interna para el reporte de diplomas';
+    const blob = new Blob([], { type: 'application/json' });
+    Object.defineProperty(blob, 'text', { value: async () => JSON.stringify({ [campo]: mensaje }) });
+    const api = {
+      getOpcionesRegistroControl: vi.fn(() => of({ facultades: [] })),
+      descargarDiplomasRegistroControl: vi.fn(() => throwError(() => new HttpErrorResponse({ status: 409, error: blob })))
+    };
+    await TestBed.configureTestingModule({
+      imports: [RegistroControlComponent],
+      providers: [{ provide: DiplomasApiService, useValue: api }]
+    }).compileComponents();
+    const fixture = TestBed.createComponent(RegistroControlComponent);
+    fixture.detectChanges();
+    fixture.componentInstance.descargar();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.mensaje()).toBe(mensaje);
+    expect(fixture.componentInstance.descargando()).toBe(false);
+  });
+
 });
