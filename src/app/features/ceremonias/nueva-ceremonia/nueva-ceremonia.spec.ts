@@ -269,4 +269,17 @@ describe('NuevaCeremoniaComponent', () => {
     expect(component.programasPendientes()).toEqual([]);
   });
 
+  it.each([undefined,true])('bloquea inactivación con estudiantes aunque puede_eliminar sea %s', async permiso => {
+    const ceremonia = {...tableroMock.ceremonias[0],cupos_asignados:1,puede_eliminar:permiso};
+    component.tablero.set({...tableroMock,ceremonias:[ceremonia]});
+    fixture.detectChanges();
+    const boton = fixture.nativeElement.querySelector('[aria-label="Eliminar ceremonia"]') as HTMLButtonElement;
+    expect(boton.disabled).toBe(true);
+    const confirmar = vi.spyOn(window,'confirm').mockReturnValue(true).mockClear();
+    api.eliminarCeremonia.mockClear();
+    await component.eliminar(ceremonia);
+    expect(confirmar).not.toHaveBeenCalled();
+    expect(api.eliminarCeremonia).not.toHaveBeenCalled();
+  });
+
 });

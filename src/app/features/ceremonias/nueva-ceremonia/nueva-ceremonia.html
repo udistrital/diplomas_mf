@@ -68,7 +68,7 @@
                 <div class="capacity"><strong>{{ ceremonia.cupos_asignados }}</strong><span>asignados</span></div>
                 <div class="capacity capacity--available"><strong>{{ ceremonia.cupos_disponibles }}</strong><span>libres</span></div>
                 <div class="flow-state" [class.flow-state--locked]="ceremonia.puede_editar === false"><strong>{{ ceremonia.estado_flujo || 'PARAMETRIZADA' }}</strong>@if (ceremonia.motivo_bloqueo) {<span>{{ ceremonia.motivo_bloqueo }}</span>}</div>
-                <div class="item-actions"><button mat-icon-button type="button" aria-label="Editar ceremonia" (click)="editar(ceremonia)" [disabled]="ceremonia.puede_editar === false"><mat-icon>edit</mat-icon></button><button mat-icon-button color="warn" type="button" aria-label="Eliminar ceremonia" (click)="eliminar(ceremonia)" [disabled]="ceremonia.puede_eliminar === false"><mat-icon>delete</mat-icon></button></div>
+                <div class="item-actions"><button mat-icon-button type="button" aria-label="Editar ceremonia" (click)="editar(ceremonia)" [disabled]="ceremonia.puede_editar === false"><mat-icon>edit</mat-icon></button><button mat-icon-button color="warn" type="button" aria-label="Eliminar ceremonia" (click)="eliminar(ceremonia)" [disabled]="ceremonia.cupos_asignados > 0 || ceremonia.puede_eliminar === false"><mat-icon>delete</mat-icon></button></div>
               </article>
             }
           </div>
