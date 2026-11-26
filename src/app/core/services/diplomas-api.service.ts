@@ -179,8 +179,9 @@ export class DiplomasApiService {
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.normalizarError(error, 'ceremonia'))));
   }
 
-  descargarDiplomasRegistroControl(facultadId?: number, ceremoniaId?: number): Observable<Blob> {
+  descargarDiplomasRegistroControl(facultadId?: number, ceremoniaId?: number, incluirReporte = false): Observable<Blob> {
     let params = new HttpParams();
+    if (incluirReporte) params = params.set('incluir_reporte', 'true');
     if (facultadId) {
       params = params.set('facultad_id', String(facultadId));
     }

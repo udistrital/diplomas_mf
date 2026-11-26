@@ -70,11 +70,11 @@ export class RegistroControlComponent implements OnInit {
     }
   }
 
-  descargar(): void {
+  descargar(incluirReporte = false): void {
     if (this.descargando()) return;
     this.descargando.set(true);
     this.mensaje.set(null);
-    this.api.descargarDiplomasRegistroControl(this.facultadId() ?? undefined, this.ceremoniaId() ?? undefined)
+    this.api.descargarDiplomasRegistroControl(this.facultadId() ?? undefined, this.ceremoniaId() ?? undefined, incluirReporte)
       .pipe(finalize(() => this.descargando.set(false)))
       .subscribe({
         next: (archivo) => {
@@ -84,7 +84,7 @@ export class RegistroControlComponent implements OnInit {
           enlace.download = 'diplomas_registro_control.zip';
           enlace.click();
           URL.revokeObjectURL(url);
-          this.mensaje.set('ZIP con diplomas originales generado correctamente.');
+          this.mensaje.set(incluirReporte ? 'ZIP con diplomas y reporte Excel generado correctamente.' : 'ZIP con diplomas originales generado correctamente.');
         },
         error: (error) => void this.mostrarErrorDescarga(error)
       });
