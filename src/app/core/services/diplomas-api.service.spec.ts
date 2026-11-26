@@ -186,6 +186,14 @@ describe('DiplomasApiService', () => {
     expect(mensaje).toContain('firmante activo');
   });
 
+  it('solicita el reporte Excel únicamente cuando se elige esa opción', () => {
+    service.descargarDiplomasRegistroControl(14, 4, true).subscribe();
+    const req = httpMock.expectOne((r) => r.url.endsWith('/diplomas/registro-control/archivo') && r.params.get('incluir_reporte') === 'true');
+    expect(req.request.params.get('facultad_id')).toBe('14');
+    expect(req.request.params.get('ceremonia_id')).toBe('4');
+    expect(req.request.responseType).toBe('blob');
+    req.flush(new Blob([], {type:'application/zip'}));
+  });
 });
 
 
@@ -199,4 +207,6 @@ describe('API local montada por root en otro puerto', () => {
   expect(new URL(request.request.url).port).toBe('4227');
   request.flush({});http.verify();
  });
+
+
 });

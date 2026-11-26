@@ -3,14 +3,14 @@
     <mat-icon>inventory_2</mat-icon>
     <div>
       <h1>Registro y Control</h1>
-      <p>Descargue los diplomas originales.</p>
+      <p>Descargue los diplomas originales y su reporte Excel.</p>
     </div>
   </header>
 
   <mat-card>
     <mat-card-header><mat-card-title>Archivo institucional de diplomas</mat-card-title></mat-card-header>
     <mat-card-content>
-      <p>El ZIP incluye los PDF originales por facultad y ceremonia. Deje los filtros vacíos para incluir todos los
+      <p>El ZIP incluye los PDF originales por facultad y ceremonia. La opción con Excel agrega sus metadatos y enlaces de verificación del QR. Deje los filtros vacíos para incluir todos los
         diplomas finalizados.</p>
       @if (cargando()) {
       <div class="cargando"><mat-progress-spinner diameter="28" mode="indeterminate" /> Cargando opciones disponibles
@@ -46,6 +46,10 @@
         @if (descargando()) { <mat-progress-spinner diameter="20" mode="indeterminate" /> }
         @else { <mat-icon>folder_zip</mat-icon> }
         {{ descargando() ? 'Preparando ZIP' : 'Descargar diplomas' }}
+      </button>
+      <button mat-stroked-button color="primary" type="button"
+        [disabled]="descargando() || cargando() || diplomasDisponibles() === 0" (click)="descargar(true)">
+        <mat-icon>table_view</mat-icon>Descargar diplomas y Excel
       </button>
       @if (mensaje()) { <p class="mensaje">{{ mensaje() }}</p> }
     </mat-card-content>
